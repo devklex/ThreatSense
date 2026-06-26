@@ -1,0 +1,484 @@
+{
+  "entries": [
+    {
+      "id": "volatile_plants",
+      "name": "Volatile Plants",
+      "category": "Explosion",
+      "pathContains": [
+        "MonsterMods/VolatilePlants",
+        "MonsterMods/Player/VolatilePlants",
+        "VolatilePlantsVolatile",
+        "TreeVolatile",
+        "volatile_explode",
+        "CarnivorousPlantEater/volatile_root",
+        "LeagueRitual/Daemons/VolatilePlantsVolatile"
+      ],
+      "label": "VOLATILE",
+      "defaultEnabled": true,
+      "color": "#FF4500",
+      "sizeMultiplier": 1.3
+    },
+    {
+      "id": "volatile_rocks",
+      "name": "Volatile Crag / Rocks",
+      "category": "Explosion",
+      "pathContains": [
+        "MonsterMods/VolatileRocks",
+        "MonsterMods/Player/VolatileRocks",
+        "MonsterMods/LeagueAbyss/Player/VolatileRocks",
+        "VolatileRocksVolatile",
+        "VolatileRockSpawner",
+        "LeagueAbyss/VolatileRocks",
+        "League_Abyss/general_effects/exploding_orb",
+        "monster_mods/exploding_orbs"
+      ],
+      "label": "VOLATILE",
+      "defaultEnabled": true,
+      "color": "#FF4500",
+      "sizeMultiplier": 1.3
+    },
+    {
+      "id": "volatile_crystals",
+      "name": "Volatile Crystals",
+      "category": "Explosion",
+      "pathContains": [
+        "MonsterMods/LivingCrystals",
+        "LivingCrystals",
+        "LivingCrystal",
+        "crystal_beam",
+        "ExplodingCrystals"
+      ],
+      "label": "CRYSTAL",
+      "defaultEnabled": true,
+      "color": "#FF66CC",
+      "sizeMultiplier": 1.2
+    },
+    {
+      "id": "drowning_orb",
+      "name": "Drowning Orb",
+      "category": "Projectile / ground hazard",
+      "pathContains": [
+        "DrowningOrbs/DrowningOrb",
+        "TrenchHagDrowningOrb",
+        "SirenBossDrowningOrb",
+        "WaterOrb"
+      ],
+      "label": "DROWNING",
+      "defaultEnabled": true,
+      "color": "#00BFFF",
+      "sizeMultiplier": 1.0
+    },
+    {
+      "id": "water_vortex",
+      "name": "Water Vortex",
+      "category": "Ground effect",
+      "pathContains": [
+        "WaterVortex",
+        "water_vortex",
+        "waterburst"
+      ],
+      "label": "VORTEX",
+      "defaultEnabled": true,
+      "color": "#00BFFF",
+      "sizeMultiplier": 2.0
+    },
+    {
+      "id": "fire_beacon",
+      "name": "Fire Beacon / Flame Bearers",
+      "category": "Explosion",
+      "pathContains": [
+        "fire_beacons",
+        "MonsterModsOnDeathFireExplosion",
+        "FlameBeacons",
+        "FlameBeacon",
+        "BeaconOnDeathFire"
+      ],
+      "label": "FIRE",
+      "defaultEnabled": true,
+      "color": "#FF2400",
+      "sizeMultiplier": 1.0
+    },
+    {
+      "id": "ice_beacon",
+      "name": "Ice Beacon / Frost Bearers",
+      "category": "Explosion",
+      "pathContains": [
+        "ice_beacons",
+        "MonsterModsOnDeathColdExplosion",
+        "FrostBeacons",
+        "FrostBeacon",
+        "BeaconOnDeathCold"
+      ],
+      "label": "ICE",
+      "defaultEnabled": true,
+      "color": "#00BFFF",
+      "sizeMultiplier": 1.0
+    },
+    {
+      "id": "lightning_beacon",
+      "name": "Lightning Beacon / Storm Bearers",
+      "category": "Explosion",
+      "pathContains": [
+        "lightning_beacons",
+        "MonsterModsOnDeathLightningExplosion",
+        "LightningBeacons",
+        "LightningBeacon",
+        "BeaconOnDeathLightning"
+      ],
+      "label": "LIGHTNING",
+      "defaultEnabled": true,
+      "color": "#FFFF00",
+      "sizeMultiplier": 1.0
+    },
+    {
+      "id": "mana_siphon",
+      "name": "Mana Siphon",
+      "category": "Area hazard",
+      "pathContains": [
+        "ManaSiphoner",
+        "ManaSiphon",
+        "SiphonAura"
+      ],
+      "label": "SIPHON",
+      "defaultEnabled": true,
+      "color": "#CC66FF",
+      "sizeMultiplier": 3.0
+    },
+    {
+      "id": "lightning_storm",
+      "name": "Lightning Storm / Storm Herald",
+      "category": "Area hazard",
+      "pathContains": [
+        "LightningStorms",
+        "StormHerald",
+        "ArchnemesisStormHerald",
+        "Lightning_strike",
+        "VaalStormCall",
+        "StormCall"
+      ],
+      "label": "STORM",
+      "defaultEnabled": true,
+      "color": "#FFFF00",
+      "sizeMultiplier": 2.0
+    },
+    {
+      "id": "lightning_mirage",
+      "name": "Lightning Mirage",
+      "category": "Area hazard",
+      "pathContains": [
+        "LightningMirage",
+        "MonsterModLightningMirage",
+        "static_discharge",
+        "lightningblast"
+      ],
+      "label": "MIRAGE",
+      "defaultEnabled": true,
+      "color": "#00BFFF",
+      "sizeMultiplier": 1.4
+    },
+    {
+      "id": "magma_barrier",
+      "name": "Magma Barrier",
+      "category": "Area hazard",
+      "pathContains": [
+        "MagmaBarrier",
+        "MonsterModMagmaBarrier"
+      ],
+      "label": "MAGMA",
+      "defaultEnabled": true,
+      "color": "#FF6A00",
+      "sizeMultiplier": 1.8
+    },
+    {
+      "id": "flamewaller",
+      "name": "Flamewalls",
+      "category": "Area hazard",
+      "pathContains": [
+        "Flamewaller",
+        "Flamewall",
+        "MonsterModFlamewaller"
+      ],
+      "label": "WALL",
+      "defaultEnabled": true,
+      "color": "#FF8C00",
+      "sizeMultiplier": 2.2
+    },
+    {
+      "id": "shroud_walker",
+      "name": "Shroud / Shade Walker",
+      "category": "Area hazard",
+      "pathContains": [
+        "ShroudWalker",
+        "ShadeWalker",
+        "MonsterModShroudWalker",
+        "LeagueAbyss/ShadeWalker",
+        "mechanics/shroud"
+      ],
+      "label": "SHROUD",
+      "defaultEnabled": true,
+      "color": "#B0B0B0",
+      "sizeMultiplier": 2.0
+    },
+    {
+      "id": "amanamus_void",
+      "name": "Amanamu's Void",
+      "category": "Area hazard",
+      "pathContains": [
+        "LightlessWells/LightlessWell",
+        "AbyssLightlessWell",
+        "abyss_lightless_well",
+        "wells_of_darkness/ground_darkness",
+        "void_touched",
+        "VoidTouched",
+        "ArchnemesisModVoidTouched"
+      ],
+      "label": "VOID",
+      "defaultEnabled": true,
+      "color": "#8A2BE2",
+      "sizeMultiplier": 1.2
+    },
+    {
+      "id": "corpse_detonate",
+      "name": "Corpse Detonation",
+      "category": "Explosion",
+      "pathContains": [
+        "DetonateDead",
+        "detonate_dead",
+        "CorpseExploder",
+        "CorpseExplosion",
+        "CorpseEruption"
+      ],
+      "label": "CORPSE",
+      "defaultEnabled": true,
+      "color": "#FF4500",
+      "sizeMultiplier": 2.4
+    },
+    {
+      "id": "flameblast",
+      "name": "Flameblast",
+      "category": "Area hazard",
+      "pathContains": [
+        "Flameblast",
+        "flameblast",
+        "fire_flame_blast",
+        "MonsterChargedBlast"
+      ],
+      "label": "BLAST",
+      "defaultEnabled": true,
+      "color": "#FF2400",
+      "sizeMultiplier": 3.0
+    },
+    {
+      "id": "solar_orb",
+      "name": "Solar Orb",
+      "category": "Area hazard",
+      "pathContains": [
+        "fire_solar_orb"
+      ],
+      "label": "SOLAR",
+      "defaultEnabled": true,
+      "color": "#FF8C00",
+      "sizeMultiplier": 1.6
+    },
+    {
+      "id": "firestorm",
+      "name": "Firestorm",
+      "category": "Area hazard",
+      "pathContains": [
+        "Firestorm",
+        "firestorm",
+        "DeliriumFirestormDaemon",
+        "ChayulaFirestormDaemon"
+      ],
+      "label": "FIRESTORM",
+      "defaultEnabled": true,
+      "color": "#FF8C00",
+      "sizeMultiplier": 2.6
+    },
+    {
+      "id": "bloater_explosion",
+      "name": "Bloater Explosion",
+      "category": "Explosion",
+      "pathContains": [
+        "Bloater_Death_Explode",
+        "CenobiteBloater"
+      ],
+      "label": "EXPLODES",
+      "defaultEnabled": true,
+      "color": "#FF4500",
+      "sizeMultiplier": 1.0
+    },
+    {
+      "id": "abyss_monster_explosions",
+      "name": "Abyss Monster Explosions",
+      "category": "Explosion",
+      "pathContains": [
+        "League_Abyss/MorayClanMonster/explode_01",
+        "League_Abyss/PaleWalker/mine_explode",
+        "League_Abyss/PaleWalker/SoulExplode"
+      ],
+      "label": "ABYSS",
+      "defaultEnabled": true,
+      "color": "#8A2BE2",
+      "sizeMultiplier": 1.3
+    },
+    {
+      "id": "tormented_spirit_explosions",
+      "name": "Tormented Spirit Explosions",
+      "category": "Explosion",
+      "pathContains": [
+        "tormented_spirits/primate_boar/boar_explode",
+        "tormented_spirits/primate_spirit/minion_cold_explode"
+      ],
+      "label": "SPIRIT",
+      "defaultEnabled": true,
+      "color": "#66CCFF",
+      "sizeMultiplier": 1.2
+    },
+    {
+      "id": "burning_ground",
+      "name": "Burning Ground",
+      "category": "Ground effect",
+      "pathContains": [
+        "grd_Burning",
+        "burned_ground",
+        "burning_ground",
+        "BurningGround",
+        "GroundFire"
+      ],
+      "label": "BURNING",
+      "defaultEnabled": true,
+      "color": "#FF8C00",
+      "sizeMultiplier": 1.0,
+      "requireGroundEffectComponent": true
+    },
+    {
+      "id": "chilled_ground",
+      "name": "Chilled Ground",
+      "category": "Ground effect",
+      "pathContains": [
+        "grd_Chilled",
+        "chilled_ground",
+        "ChilledGround",
+        "GroundIce"
+      ],
+      "label": "CHILLED",
+      "defaultEnabled": true,
+      "color": "#ADD8E6",
+      "sizeMultiplier": 1.0,
+      "requireGroundEffectComponent": true
+    },
+    {
+      "id": "shocked_ground",
+      "name": "Shocked Ground",
+      "category": "Ground effect",
+      "pathContains": [
+        "grd_Shocked",
+        "shocked_ground",
+        "ShockedGround"
+      ],
+      "label": "SHOCKED",
+      "defaultEnabled": true,
+      "color": "#87CEFA",
+      "sizeMultiplier": 1.0,
+      "requireGroundEffectComponent": true
+    },
+    {
+      "id": "caustic_ground",
+      "name": "Caustic Ground / Cloud",
+      "category": "Ground effect",
+      "pathContains": [
+        "CausticCloud",
+        "caustic",
+        "poison_cloud"
+      ],
+      "label": "CAUSTIC",
+      "defaultEnabled": true,
+      "color": "#2ECC71",
+      "sizeMultiplier": 1.0,
+      "requireGroundEffectComponent": true
+    },
+    {
+      "id": "abyss_withered_ground",
+      "name": "Abyss Withered Ground",
+      "category": "Ground effect",
+      "pathContains": [
+        "League_Abyss/MonolithicSlug/Withered_Ground"
+      ],
+      "label": "WITHER",
+      "defaultEnabled": true,
+      "color": "#7A3CFF",
+      "sizeMultiplier": 1.0,
+      "requireGroundEffectComponent": true
+    },
+    {
+      "id": "maggot_husk_ground",
+      "name": "Maggot Husk Ground",
+      "category": "Ground effect",
+      "pathContains": [
+        "Act2_FOUR/MaggotHusks/groundeffect"
+      ],
+      "label": "MAGGOT",
+      "defaultEnabled": true,
+      "color": "#8FBC8F",
+      "sizeMultiplier": 1.0,
+      "requireGroundEffectComponent": true
+    },
+    {
+      "id": "smoke_blind",
+      "name": "Smoke Blind",
+      "category": "Ground effect",
+      "pathContains": [
+        "ground_effects_v2/smoke_blind"
+      ],
+      "label": "SMOKE",
+      "defaultEnabled": false,
+      "color": "#B0B0B0",
+      "sizeMultiplier": 1.0,
+      "requireGroundEffectComponent": true
+    },
+    {
+      "id": "desecrated_ground",
+      "name": "Desecrated Ground",
+      "category": "Ground effect",
+      "pathContains": [
+        "Desecrate",
+        "Desecrated",
+        "desecrated_ground",
+        "ground_desecration"
+      ],
+      "label": "DESECRATE",
+      "defaultEnabled": true,
+      "color": "#800080",
+      "sizeMultiplier": 1.0,
+      "requireGroundEffectComponent": true
+    },
+    {
+      "id": "tar_ground",
+      "name": "Tar Ground",
+      "category": "Ground effect",
+      "pathContains": [
+        "GroundTar",
+        "tar_ground",
+        "TarGround"
+      ],
+      "label": "TAR",
+      "defaultEnabled": true,
+      "color": "#7A4A20",
+      "sizeMultiplier": 1.0,
+      "requireGroundEffectComponent": true
+    },
+    {
+      "id": "living_blood",
+      "name": "Living Blood",
+      "category": "Ground effect",
+      "pathContains": [
+        "LivingBlood"
+      ],
+      "label": "BLOOD",
+      "defaultEnabled": true,
+      "color": "#8B0000",
+      "sizeMultiplier": 1.0
+    }
+  ]
+}
