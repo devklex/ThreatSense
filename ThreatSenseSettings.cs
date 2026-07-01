@@ -11,7 +11,7 @@ namespace ThreatSense;
 
 public class ThreatSenseSettings : ISettings
 {
-    private const int CurrentDefaultsVersion = 12;
+    private const int CurrentDefaultsVersion = 13;
 
     private static readonly HashSet<string> Version10RecommendedAffixIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -129,6 +129,9 @@ public class ThreatSenseSettings : ISettings
 
         MonsterAffixes = MergeMonsterAffixes(MonsterAffixes, affixDefinitions, recommendedAffixIdsToApply);
         EffectRules = MergeEffectRules(EffectRules, effectDefinitions);
+        if (DefaultsVersion < 13)
+            ApplyVersion13EffectSizeDefaults();
+
         DefaultsVersion = CurrentDefaultsVersion;
     }
 
@@ -213,6 +216,22 @@ public class ThreatSenseSettings : ISettings
         }
 
         return merged;
+    }
+
+    private void ApplyVersion13EffectSizeDefaults()
+    {
+        foreach (var rule in EffectRules)
+        {
+            rule.EnsureDefaults();
+            if (!IsRitualWispRule(rule))
+                rule.SizeMultiplier.Value = 1.0f;
+        }
+    }
+
+    private static bool IsRitualWispRule(EffectPathRule rule)
+    {
+        return rule.Id.Equals("ritual_wisp_anchor", StringComparison.OrdinalIgnoreCase) ||
+               rule.PathContains.Any(x => x.Contains("Daemon/RitualWisp", StringComparison.OrdinalIgnoreCase));
     }
 }
 

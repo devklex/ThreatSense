@@ -17,7 +17,7 @@
       "label": "VOLATILE",
       "defaultEnabled": true,
       "color": "#FF4500",
-      "sizeMultiplier": 1.3
+      "sizeMultiplier": 1.0
     },
     {
       "id": "volatile_rocks",
@@ -36,7 +36,7 @@
       "label": "VOLATILE",
       "defaultEnabled": true,
       "color": "#FF4500",
-      "sizeMultiplier": 1.3
+      "sizeMultiplier": 1.0
     },
     {
       "id": "volatile_crystals",
@@ -57,7 +57,7 @@
       "label": "CRYSTAL",
       "defaultEnabled": true,
       "color": "#FF66CC",
-      "sizeMultiplier": 1.2
+      "sizeMultiplier": 1.0
     },
     {
       "id": "drowning_orb",
@@ -86,7 +86,7 @@
       "label": "VORTEX",
       "defaultEnabled": true,
       "color": "#00BFFF",
-      "sizeMultiplier": 2.0
+      "sizeMultiplier": 1.0
     },
     {
       "id": "fire_beacon",
@@ -151,7 +151,7 @@
       "label": "SIPHON",
       "defaultEnabled": true,
       "color": "#CC66FF",
-      "sizeMultiplier": 3.0
+      "sizeMultiplier": 1.0
     },
     {
       "id": "lightning_storm",
@@ -172,7 +172,7 @@
       "label": "STORM",
       "defaultEnabled": true,
       "color": "#FFFF00",
-      "sizeMultiplier": 2.0
+      "sizeMultiplier": 1.0
     },
     {
       "id": "lightning_mirage",
@@ -187,7 +187,7 @@
       "label": "MIRAGE",
       "defaultEnabled": true,
       "color": "#00BFFF",
-      "sizeMultiplier": 1.4
+      "sizeMultiplier": 1.0
     },
     {
       "id": "magma_barrier",
@@ -200,7 +200,7 @@
       "label": "MAGMA",
       "defaultEnabled": true,
       "color": "#FF6A00",
-      "sizeMultiplier": 1.8
+      "sizeMultiplier": 1.0
     },
     {
       "id": "flamewaller",
@@ -214,7 +214,7 @@
       "label": "WALL",
       "defaultEnabled": true,
       "color": "#FF8C00",
-      "sizeMultiplier": 2.2
+      "sizeMultiplier": 1.0
     },
     {
       "id": "shroud_walker",
@@ -230,7 +230,7 @@
       "label": "SHROUD",
       "defaultEnabled": true,
       "color": "#B0B0B0",
-      "sizeMultiplier": 2.0
+      "sizeMultiplier": 1.0
     },
     {
       "id": "amanamus_void",
@@ -248,7 +248,7 @@
       "label": "VOID",
       "defaultEnabled": true,
       "color": "#8A2BE2",
-      "sizeMultiplier": 1.2
+      "sizeMultiplier": 1.0
     },
     {
       "id": "ritual_wisp_anchor",
@@ -293,7 +293,7 @@
       "label": "DODGE",
       "defaultEnabled": true,
       "color": "#FF3030",
-      "sizeMultiplier": 1.5,
+      "sizeMultiplier": 1.0,
       "matchAnyEntityType": true
     },
     {
@@ -307,7 +307,7 @@
       "label": "BLOOD",
       "defaultEnabled": true,
       "color": "#C00030",
-      "sizeMultiplier": 1.4
+      "sizeMultiplier": 1.0
     },
     {
       "id": "corpse_detonate",
@@ -325,7 +325,7 @@
       "label": "CORPSE",
       "defaultEnabled": true,
       "color": "#FF4500",
-      "sizeMultiplier": 2.4
+      "sizeMultiplier": 1.0
     },
     {
       "id": "flameblast",
@@ -340,7 +340,7 @@
       "label": "BLAST",
       "defaultEnabled": true,
       "color": "#FF2400",
-      "sizeMultiplier": 3.0
+      "sizeMultiplier": 1.0
     },
     {
       "id": "solar_orb",
@@ -353,7 +353,7 @@
       "label": "SOLAR",
       "defaultEnabled": true,
       "color": "#FF8C00",
-      "sizeMultiplier": 1.6
+      "sizeMultiplier": 1.0
     },
     {
       "id": "firestorm",
@@ -368,7 +368,7 @@
       "label": "FIRESTORM",
       "defaultEnabled": true,
       "color": "#FF8C00",
-      "sizeMultiplier": 2.6
+      "sizeMultiplier": 1.0
     },
     {
       "id": "bloater_explosion",
@@ -399,7 +399,7 @@
       "label": "ABYSS",
       "defaultEnabled": true,
       "color": "#8A2BE2",
-      "sizeMultiplier": 1.3
+      "sizeMultiplier": 1.0
     },
     {
       "id": "abyss_lightless_rune",
@@ -413,7 +413,7 @@
       "label": "RUNE",
       "defaultEnabled": true,
       "color": "#B066FF",
-      "sizeMultiplier": 1.4
+      "sizeMultiplier": 1.0
     },
     {
       "id": "expedition_toxic_runes",
@@ -426,7 +426,7 @@
       "label": "TOXIC",
       "defaultEnabled": true,
       "color": "#40FF70",
-      "sizeMultiplier": 1.2
+      "sizeMultiplier": 1.0
     },
     {
       "id": "affliction_spikes",
@@ -440,7 +440,7 @@
       "label": "SPIKES",
       "defaultEnabled": true,
       "color": "#FF5A40",
-      "sizeMultiplier": 1.3
+      "sizeMultiplier": 1.0
     },
     {
       "id": "delirium_explosions",
@@ -455,7 +455,7 @@
       "label": "DELIRIUM",
       "defaultEnabled": true,
       "color": "#A070FF",
-      "sizeMultiplier": 1.4
+      "sizeMultiplier": 1.0
     },
     {
       "id": "minecart_explosives",
@@ -468,7 +468,7 @@
       "label": "CART",
       "defaultEnabled": true,
       "color": "#FFB000",
-      "sizeMultiplier": 1.2
+      "sizeMultiplier": 1.0
     },
     {
       "id": "monster_mortar_impacts",
@@ -486,7 +486,7 @@
       "label": "MORTAR",
       "defaultEnabled": true,
       "color": "#FF8C00",
-      "sizeMultiplier": 1.3
+      "sizeMultiplier": 1.0
     },
     {
       "id": "tormented_spirit_explosions",
@@ -499,7 +499,7 @@
       "label": "SPIRIT",
       "defaultEnabled": true,
       "color": "#66CCFF",
-      "sizeMultiplier": 1.2
+      "sizeMultiplier": 1.0
     },
     {
       "id": "burning_ground",
