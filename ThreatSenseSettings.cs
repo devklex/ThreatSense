@@ -11,7 +11,7 @@ namespace ThreatSense;
 
 public class ThreatSenseSettings : ISettings
 {
-    private const int CurrentDefaultsVersion = 5;
+    private const int CurrentDefaultsVersion = 8;
 
     public ToggleNode Enable { get; set; } = new ToggleNode(false);
     public ToggleNode DrawMonsterAffixWarnings { get; set; } = new ToggleNode(true);
@@ -33,6 +33,9 @@ public class ThreatSenseSettings : ISettings
     [Menu(null, CollapsedByDefault = false)]
     public AmanamuSettings AmanamuVoid { get; set; } = new AmanamuSettings();
 
+    [Menu(null, CollapsedByDefault = false)]
+    public AbyssPitCounterSettings AbyssPitCounter { get; set; } = new AbyssPitCounterSettings();
+
     [Menu(null, CollapsedByDefault = true)]
     public DebugSettings Debug { get; set; } = new DebugSettings();
 
@@ -47,11 +50,18 @@ public class ThreatSenseSettings : ISettings
     {
         AmanamuVoid ??= new AmanamuSettings();
         AmanamuVoid.EnsureDefaults();
+        AbyssPitCounter ??= new AbyssPitCounterSettings();
+        AbyssPitCounter.EnsureDefaults();
         Debug ??= new DebugSettings();
 
-        var refreshRecommendedDefaults = DefaultsVersion < CurrentDefaultsVersion;
-        MonsterAffixes = MergeMonsterAffixes(MonsterAffixes, affixDefinitions, refreshRecommendedDefaults);
-        EffectRules = MergeEffectRules(EffectRules, effectDefinitions, refreshRecommendedDefaults);
+        if (DefaultsVersion < 7)
+        {
+            AbyssPitCounter.UseTerrainFeatureTotal.Value = false;
+            AbyssPitCounter.UsePathFallback.Value = false;
+        }
+
+        MonsterAffixes = MergeMonsterAffixes(MonsterAffixes, affixDefinitions);
+        EffectRules = MergeEffectRules(EffectRules, effectDefinitions);
         DefaultsVersion = CurrentDefaultsVersion;
     }
 
@@ -62,7 +72,7 @@ public class ThreatSenseSettings : ISettings
         DefaultsVersion = CurrentDefaultsVersion;
     }
 
-    private static List<MonsterAffixRule> MergeMonsterAffixes(IEnumerable<MonsterAffixRule>? existing, IReadOnlyList<MonsterAffixDefinition> definitions, bool refreshRecommendedDefaults)
+    private static List<MonsterAffixRule> MergeMonsterAffixes(IEnumerable<MonsterAffixRule>? existing, IReadOnlyList<MonsterAffixDefinition> definitions)
     {
         var existingById = (existing ?? Enumerable.Empty<MonsterAffixRule>())
             .Where(x => !string.IsNullOrWhiteSpace(x.Id))
@@ -80,8 +90,6 @@ public class ThreatSenseSettings : ISettings
                 saved.GenerationType = definition.GenerationType;
                 saved.Text = definition.Text;
                 saved.EnsureDefaults();
-                if (refreshRecommendedDefaults && definition.DefaultEnabled)
-                    saved.Enabled.Value = true;
                 merged.Add(saved);
             }
             else
@@ -93,7 +101,7 @@ public class ThreatSenseSettings : ISettings
         return merged;
     }
 
-    private static List<EffectPathRule> MergeEffectRules(IEnumerable<EffectPathRule>? existing, IReadOnlyList<EffectRuleDefinition> definitions, bool refreshRecommendedDefaults)
+    private static List<EffectPathRule> MergeEffectRules(IEnumerable<EffectPathRule>? existing, IReadOnlyList<EffectRuleDefinition> definitions)
     {
         var existingById = (existing ?? Enumerable.Empty<EffectPathRule>())
             .Where(x => !string.IsNullOrWhiteSpace(x.Id))
@@ -110,12 +118,6 @@ public class ThreatSenseSettings : ISettings
                 saved.PathContains = definition.PathContains.ToList();
                 saved.Label = definition.Label;
                 saved.EnsureDefaults();
-                if (refreshRecommendedDefaults && definition.DefaultEnabled)
-                {
-                    saved.Enabled.Value = true;
-                    saved.SizeMultiplier.Value = definition.SizeMultiplier;
-                    saved.RequireGroundEffectComponent.Value = definition.RequireGroundEffectComponent;
-                }
                 merged.Add(saved);
             }
             else
@@ -188,10 +190,71 @@ public class AmanamuSettings
     }
 }
 
+public class AbyssPitCounterSettings
+{
+    public static readonly string[] DefaultPathContains =
+    {
+        "AbyssPitFeature",
+        "AbyssPit",
+        "AbyssHole",
+        "AbyssCircle",
+        "abyss_transition"
+    };
+
+    public ToggleNode Enable { get; set; } = new ToggleNode(true);
+    public ToggleNode UseTerrainFeatureTotal { get; set; } = new ToggleNode(false);
+    public ToggleNode UsePathFallback { get; set; } = new ToggleNode(false);
+    public ToggleNode HideWhenNoPitsFound { get; set; } = new ToggleNode(true);
+    public TextNode Label { get; set; } = new TextNode("Abyss Pits");
+    public RangeNode<int> PositionX { get; set; } = new RangeNode<int>(20, 0, 3840);
+    public RangeNode<int> PositionY { get; set; } = new RangeNode<int>(220, 0, 2160);
+    public RangeNode<float> TextScale { get; set; } = new RangeNode<float>(1.0f, 0.5f, 2.5f);
+    public ColorNode TextColor { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(255, 235, 235, 235));
+    public ColorNode ClosedColor { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(255, 80, 255, 120));
+    public ColorNode BorderColor { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(220, 180, 120, 255));
+    public ColorNode BackgroundColor { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(190, 6, 6, 10));
+    public List<string> PathContains { get; set; } = DefaultPathContains.ToList();
+
+    public void EnsureDefaults()
+    {
+        Enable ??= new ToggleNode(true);
+        UseTerrainFeatureTotal ??= new ToggleNode(false);
+        UsePathFallback ??= new ToggleNode(false);
+        HideWhenNoPitsFound ??= new ToggleNode(true);
+        Label ??= new TextNode("Abyss Pits");
+        PositionX ??= new RangeNode<int>(20, 0, 3840);
+        PositionY ??= new RangeNode<int>(220, 0, 2160);
+        TextScale ??= new RangeNode<float>(1.0f, 0.5f, 2.5f);
+        TextColor ??= new ColorNode(System.Drawing.Color.FromArgb(255, 235, 235, 235));
+        ClosedColor ??= new ColorNode(System.Drawing.Color.FromArgb(255, 80, 255, 120));
+        BorderColor ??= new ColorNode(System.Drawing.Color.FromArgb(220, 180, 120, 255));
+        BackgroundColor ??= new ColorNode(System.Drawing.Color.FromArgb(190, 6, 6, 10));
+
+        if (PathContains == null || PathContains.Count == 0)
+        {
+            PathContains = DefaultPathContains.ToList();
+        }
+        else
+        {
+            foreach (var defaultPath in DefaultPathContains)
+            {
+                if (!PathContains.Any(x => x.Equals(defaultPath, StringComparison.OrdinalIgnoreCase)))
+                    PathContains.Add(defaultPath);
+            }
+        }
+    }
+
+    public void ResetPathContains()
+    {
+        PathContains = DefaultPathContains.ToList();
+    }
+}
+
 public class DebugSettings
 {
     public ToggleNode LogMatchedMonsters { get; set; } = new ToggleNode(false);
     public ToggleNode LogMatchedEffects { get; set; } = new ToggleNode(false);
+    public ToggleNode LogMatchedAbyssPits { get; set; } = new ToggleNode(false);
     public ToggleNode CollectUnknownEffects { get; set; } = new ToggleNode(false);
 }
 

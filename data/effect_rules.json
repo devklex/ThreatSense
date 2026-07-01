@@ -46,7 +46,12 @@
         "LivingCrystals",
         "LivingCrystal",
         "crystal_beam",
-        "ExplodingCrystals"
+        "ExplodingCrystals",
+        "druid_crystalrain",
+        "KaruiArcherCrystal",
+        "AbyssalCrystalWaller",
+        "AbyssCrystalMine",
+        "League_Hellscape/elite_xenobyte_sage/crystal_mortar"
       ],
       "label": "CRYSTAL",
       "defaultEnabled": true,
@@ -107,7 +112,10 @@
         "MonsterModsOnDeathColdExplosion",
         "FrostBeacons",
         "FrostBeacon",
-        "BeaconOnDeathCold"
+        "BeaconOnDeathCold",
+        "frost_bomb/ice_crystal",
+        "SpookyWraith/bigexplode_cold",
+        "SpookyWraith/explode_cold"
       ],
       "label": "ICE",
       "defaultEnabled": true,
@@ -154,7 +162,11 @@
         "ArchnemesisStormHerald",
         "Lightning_strike",
         "VaalStormCall",
-        "StormCall"
+        "StormCall",
+        "daemonStrongbox/storm",
+        "periodic_lightning_storm",
+        "SulphiteLightningStorm",
+        "storm_death_storm"
       ],
       "label": "STORM",
       "defaultEnabled": true,
@@ -238,6 +250,18 @@
       "sizeMultiplier": 1.2
     },
     {
+      "id": "blood_orb",
+      "name": "Blood Orb",
+      "category": "Area hazard",
+      "pathContains": [
+        "misc/blood_orbs/orb"
+      ],
+      "label": "BLOOD",
+      "defaultEnabled": true,
+      "color": "#C00030",
+      "sizeMultiplier": 1.4
+    },
+    {
       "id": "corpse_detonate",
       "name": "Corpse Detonation",
       "category": "Explosion",
@@ -246,7 +270,9 @@
         "detonate_dead",
         "CorpseExploder",
         "CorpseExplosion",
-        "CorpseEruption"
+        "CorpseEruption",
+        "BloodBather/ao/blood_explode_skeleton",
+        "PirateChestHolder/ao/SoulExplode"
       ],
       "label": "CORPSE",
       "defaultEnabled": true,
@@ -273,7 +299,8 @@
       "name": "Solar Orb",
       "category": "Area hazard",
       "pathContains": [
-        "fire_solar_orb"
+        "fire_solar_orb",
+        "FireEssence1/solar_orb"
       ],
       "label": "SOLAR",
       "defaultEnabled": true,
@@ -315,11 +342,94 @@
       "pathContains": [
         "League_Abyss/MorayClanMonster/explode_01",
         "League_Abyss/PaleWalker/mine_explode",
-        "League_Abyss/PaleWalker/SoulExplode"
+        "League_Abyss/PaleWalker/SoulExplode",
+        "League_Abyss/Cocoons2/pustule_explode",
+        "League_Abyss/Kulemak/explode",
+        "PustuleGroundSpawner"
       ],
       "label": "ABYSS",
       "defaultEnabled": true,
       "color": "#8A2BE2",
+      "sizeMultiplier": 1.3
+    },
+    {
+      "id": "abyss_lightless_rune",
+      "name": "Abyss Lightless Rune",
+      "category": "Explosion",
+      "pathContains": [
+        "League_Abyss/ExplodingRunes/Lightless_rune",
+        "MonsterMods/LeagueAbyss/LightlessRune"
+      ],
+      "label": "RUNE",
+      "defaultEnabled": true,
+      "color": "#B066FF",
+      "sizeMultiplier": 1.4
+    },
+    {
+      "id": "expedition_toxic_runes",
+      "name": "Expedition Toxic Runes",
+      "category": "Explosion",
+      "pathContains": [
+        "League_Expedition_New/general_effects/Toxic_Runes/volatile",
+        "League_Expedition/general/arbalest/ao/virulent_arrow_pod_explode"
+      ],
+      "label": "TOXIC",
+      "defaultEnabled": true,
+      "color": "#40FF70",
+      "sizeMultiplier": 1.2
+    },
+    {
+      "id": "affliction_spikes",
+      "name": "Affliction / Delirium Spikes",
+      "category": "Explosion",
+      "pathContains": [
+        "League_Affliction/affliction_demon_phys/ground_spikes",
+        "League_Affliction/affliction_manifests/sanic/explode_spikes",
+        "League_Delirium/Demons/PhysSpikes/ground_rune"
+      ],
+      "label": "SPIKES",
+      "defaultEnabled": true,
+      "color": "#FF5A40",
+      "sizeMultiplier": 1.3
+    },
+    {
+      "id": "delirium_explosions",
+      "name": "Delirium Explosions",
+      "category": "Explosion",
+      "pathContains": [
+        "League_Delirium/DeliriumMonsters/Disgust/lightningExplode",
+        "League_Delirium/DeliriumMonsters/Spite/deceleratingLightningBallExplode"
+      ],
+      "label": "DELIRIUM",
+      "defaultEnabled": true,
+      "color": "#A070FF",
+      "sizeMultiplier": 1.4
+    },
+    {
+      "id": "minecart_explosives",
+      "name": "Mine Cart Explosives",
+      "category": "Explosion",
+      "pathContains": [
+        "DrudgeMiners/MineCart/ExplodeMarker",
+        "DrudgeMiners/MineCart/KeepExplodeMarker"
+      ],
+      "label": "CART",
+      "defaultEnabled": true,
+      "color": "#FFB000",
+      "sizeMultiplier": 1.2
+    },
+    {
+      "id": "monster_mortar_impacts",
+      "name": "Monster Mortar Impacts",
+      "category": "Explosion",
+      "pathContains": [
+        "SkitterBot/ao/mortar_explode",
+        "SpittingSnake/ao/mortar_explode",
+        "VaalGuards/VaalGuard03/ao/mortar_explode"
+      ],
+      "label": "MORTAR",
+      "defaultEnabled": true,
+      "color": "#FF8C00",
       "sizeMultiplier": 1.3
     },
     {
@@ -344,7 +454,8 @@
         "burned_ground",
         "burning_ground",
         "BurningGround",
-        "GroundFire"
+        "GroundFire",
+        "scorchedGroundMultiSlam"
       ],
       "label": "BURNING",
       "defaultEnabled": true,
@@ -360,7 +471,8 @@
         "grd_Chilled",
         "chilled_ground",
         "ChilledGround",
-        "GroundIce"
+        "GroundIce",
+        "ColdSnapGroundDaemon"
       ],
       "label": "CHILLED",
       "defaultEnabled": true,
@@ -375,7 +487,9 @@
       "pathContains": [
         "grd_Shocked",
         "shocked_ground",
-        "ShockedGround"
+        "ShockedGround",
+        "ShockedGroundDaemon",
+        "surge_pulse"
       ],
       "label": "SHOCKED",
       "defaultEnabled": true,
@@ -390,7 +504,10 @@
       "pathContains": [
         "CausticCloud",
         "caustic",
-        "poison_cloud"
+        "poison_cloud",
+        "FungalArtillery/ao/fungal_ground",
+        "MudBurrower/acidic_ground",
+        "ViperLegionaire/RoA_GasGround"
       ],
       "label": "CAUSTIC",
       "defaultEnabled": true,

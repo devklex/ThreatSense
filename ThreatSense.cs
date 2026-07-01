@@ -11,7 +11,10 @@ using ExileCore2.PoEMemory.Components;
 using ExileCore2.PoEMemory.MemoryObjects;
 using ExileCore2.Shared.Enums;
 using ExileCore2.Shared.Helpers;
+using GameOffsets2;
+using GameOffsets2.Native;
 using ImGuiNET;
+using RectangleF = ExileCore2.Shared.RectangleF;
 
 namespace ThreatSense;
 
@@ -19,6 +22,8 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 {
     private const string PluginVersion = "v0.1";
     private const string UnknownEffectsDumpFileName = "UnknownEffectsDump.txt";
+    private const string AbyssPitActiveIcon = "AbyssPitActive";
+    private const string AbyssPitInactiveIcon = "AbyssPitInactive";
 
     private readonly List<WarningTarget> _targets = new List<WarningTarget>();
     private readonly HashSet<string> _enabledAffixIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -30,11 +35,16 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
     private readonly List<AmanamuCloud> _amanamuClouds = new List<AmanamuCloud>();
     private readonly Dictionary<long, TrackedAmanamuTarget> _trackedAmanamuTargets = new Dictionary<long, TrackedAmanamuTarget>();
     private readonly HashSet<long> _amanamuTargetsSeenThisScan = new HashSet<long>();
+    private readonly Dictionary<string, TrackedAbyssPit> _trackedAbyssPits = new Dictionary<string, TrackedAbyssPit>(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _loggedAbyssPitMatches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<MonsterAffixDefinition> _affixDefinitions = Array.Empty<MonsterAffixDefinition>();
     private IReadOnlyList<EffectRuleDefinition> _effectDefinitions = Array.Empty<EffectRuleDefinition>();
     private string _affixSearch = string.Empty;
     private string _effectSearch = string.Empty;
     private long _lastScanMs;
+    private string _currentAbyssPitAreaKey = string.Empty;
+    private int _abyssPitTerrainCount = -1;
+    private bool _abyssPitTerrainScanAttempted;
     private int _lastMonsterCount;
     private int _lastEffectCount;
     private bool _unknownEffectsDirty;
@@ -51,6 +61,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         {
             Settings.ReplaceWithBundledDefaults(_affixDefinitions, _effectDefinitions);
             RebuildAffixLookup();
+            ResetAbyssPitTracking();
         };
 
         DebugWindow.LogMsg("[ThreatSense] " + affixMessage, 5);
@@ -64,6 +75,8 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         {
             _targets.Clear();
             _trackedAmanamuTargets.Clear();
+            if (!Settings.Enable.Value)
+                ResetAbyssPitTracking();
             return;
         }
 
@@ -85,17 +98,16 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 
     public override void Render()
     {
-        if (!Settings.Enable.Value || _targets.Count == 0)
+        if (!Settings.Enable.Value)
             return;
 
-        var ingameUi = GameController?.Game?.IngameState?.IngameUi;
-        if (ingameUi != null)
-        {
-            if (Settings.HideUnderFullscreenPanels.Value && ingameUi.FullscreenPanels.Any(x => x.IsVisible))
-                return;
-            if (Settings.HideUnderLargePanels.Value && ingameUi.LargePanels.Any(x => x.IsVisible))
-                return;
-        }
+        if (ShouldHideOverlayUnderPanels())
+            return;
+
+        DrawAbyssPitCounterOverlay();
+
+        if (_targets.Count == 0)
+            return;
 
         IDisposable? textScale = null;
         try
@@ -127,11 +139,13 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
     {
         ImGui.TextDisabled($"ThreatSense {PluginVersion}");
         ImGui.TextDisabled($"Visible warnings: {_targets.Count}, monsters: {_lastMonsterCount}, effects: {_lastEffectCount}");
+        ImGui.TextDisabled($"Abyss pits: {GetAbyssPitClosedCount()}/{GetAbyssPitFoundCount()} closed");
 
         if (ImGui.Button("Reset to bundled defaults"))
             Settings.ResetToBundledDefaults.OnPressed();
 
         DrawGeneralSettings();
+        DrawAbyssPitCounterSettings();
         DrawAmanamuSettings();
         DrawMonsterAffixSettings();
         DrawEffectRuleSettings();
@@ -144,6 +158,17 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         _targets.Clear();
         _amanamuClouds.Clear();
         _trackedAmanamuTargets.Clear();
+
+        if (!IsPeacefulArea(area))
+        {
+            var areaKey = GetAbyssPitAreaKey(area);
+            if (!string.Equals(areaKey, _currentAbyssPitAreaKey, StringComparison.Ordinal))
+            {
+                ResetAbyssPitTracking();
+                _currentAbyssPitAreaKey = areaKey;
+            }
+        }
+
         base.AreaChange(area);
     }
 
@@ -154,6 +179,8 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         _amanamuTargetsSeenThisScan.Clear();
         _lastMonsterCount = 0;
         _lastEffectCount = 0;
+
+        ScanAbyssPits();
 
         var amanamuOverlayEnabled = Settings.AmanamuVoid.EnableSpecialStateOverlay.Value;
 
@@ -167,6 +194,335 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 
         if (_unknownEffectsDirty)
             DumpUnknownEffects(false);
+    }
+
+    private void ScanAbyssPits()
+    {
+        if (!Settings.AbyssPitCounter.Enable.Value)
+            return;
+
+        MaybeScanAbyssPitTerrainTotal();
+
+        foreach (var entity in GetCachedEntities())
+        {
+            try
+            {
+                if (entity == null)
+                    continue;
+
+                if (!TryGetAbyssPitMatch(entity, out var path, out var minimapIconName))
+                    continue;
+
+                TrackAbyssPit(entity, path, minimapIconName);
+            }
+            catch (Exception ex)
+            {
+                if (Settings.Debug.LogMatchedAbyssPits.Value)
+                    DebugWindow.LogMsg($"[ThreatSense] Skipped Abyss pit candidate: {ex.Message}", 5);
+            }
+        }
+    }
+
+    private void MaybeScanAbyssPitTerrainTotal()
+    {
+        if (!Settings.AbyssPitCounter.UseTerrainFeatureTotal.Value || _abyssPitTerrainScanAttempted)
+            return;
+
+        _abyssPitTerrainScanAttempted = true;
+        try
+        {
+            _abyssPitTerrainCount = CountAbyssPitTerrainFeatures();
+            if (Settings.Debug.LogMatchedAbyssPits.Value && _abyssPitTerrainCount > 0)
+                DebugWindow.LogMsg($"[ThreatSense] Abyss pit terrain features in area: {_abyssPitTerrainCount}", 5);
+        }
+        catch (Exception ex)
+        {
+            _abyssPitTerrainCount = 0;
+            if (Settings.Debug.LogMatchedAbyssPits.Value)
+                DebugWindow.LogMsg($"[ThreatSense] Abyss pit terrain scan failed: {ex.Message}", 5);
+        }
+    }
+
+    private int CountAbyssPitTerrainFeatures()
+    {
+        var data = GameController?.IngameState?.Data;
+        var memory = GameController?.Memory;
+        if (data == null || memory == null)
+            return 0;
+
+        var terrain = data.Terrain;
+        var tileData = memory.ReadStdVector<TileStructure>(terrain.TgtArray);
+        if (tileData == null || tileData.Length == 0)
+            return 0;
+
+        var matches = new List<(int X, int Y)>();
+        for (var tileNumber = 0; tileNumber < tileData.Length; tileNumber++)
+        {
+            var tgtTileStruct = memory.Read<TgtTileStruct>(tileData[tileNumber].TgtFilePtr);
+            var detail = memory.Read<TgtDetailStruct>(tgtTileStruct.TgtDetailPtr);
+            var detailName = detail.name.ToString(memory);
+            var tgtPath = tgtTileStruct.TgtPath.ToString(memory);
+            if (!IsAbyssPitPath(detailName) && !IsAbyssPitPath(tgtPath))
+                continue;
+
+            matches.Add((tileNumber % terrain.NumCols, tileNumber / terrain.NumCols));
+        }
+
+        return CountAdjacentTileClusters(matches);
+    }
+
+    private static int CountAdjacentTileClusters(IReadOnlyList<(int X, int Y)> tiles)
+    {
+        if (tiles.Count == 0)
+            return 0;
+
+        var remaining = new HashSet<(int X, int Y)>(tiles);
+        var stack = new Stack<(int X, int Y)>();
+        var clusters = 0;
+
+        while (remaining.Count > 0)
+        {
+            var start = remaining.First();
+            remaining.Remove(start);
+            stack.Push(start);
+            clusters++;
+
+            while (stack.Count > 0)
+            {
+                var current = stack.Pop();
+                foreach (var neighbor in GetAdjacentTiles(current))
+                {
+                    if (!remaining.Remove(neighbor))
+                        continue;
+
+                    stack.Push(neighbor);
+                }
+            }
+        }
+
+        return clusters;
+    }
+
+    private static IEnumerable<(int X, int Y)> GetAdjacentTiles((int X, int Y) tile)
+    {
+        for (var x = tile.X - 1; x <= tile.X + 1; x++)
+        {
+            for (var y = tile.Y - 1; y <= tile.Y + 1; y++)
+            {
+                if (x == tile.X && y == tile.Y)
+                    continue;
+
+                yield return (x, y);
+            }
+        }
+    }
+
+    private void TrackAbyssPit(Entity entity, string path, string minimapIconName)
+    {
+        var key = GetAbyssPitKey(entity, path, minimapIconName);
+        if (!_trackedAbyssPits.TryGetValue(key, out var tracked))
+        {
+            tracked = new TrackedAbyssPit
+            {
+                Key = key,
+                Path = path,
+                MinimapIconName = minimapIconName,
+                Position = entity.Pos,
+                FirstSeenMs = Environment.TickCount64
+            };
+            _trackedAbyssPits[key] = tracked;
+
+            if (Settings.Debug.LogMatchedAbyssPits.Value && _loggedAbyssPitMatches.Add(key + "|found"))
+                DebugWindow.LogMsg($"[ThreatSense] Abyss pit found: {DescribeAbyssPit(entity, path, minimapIconName)}", 5);
+        }
+
+        tracked.LastSeenMs = Environment.TickCount64;
+        tracked.Path = path;
+        tracked.MinimapIconName = minimapIconName;
+        tracked.Position = entity.Pos;
+
+        var state = ReadAbyssPitState(entity);
+        tracked.WasTargetable |= state.IsTargetable == true;
+        tracked.WasMapVisible |= state.MapVisible == true;
+        tracked.WasTransitionActive |= state.TransitionFlag1 == 1;
+
+        var wasClosed = tracked.Closed;
+        tracked.Closed |= IsAbyssPitClosed(tracked, state, path);
+        tracked.LastState = state;
+
+        if (!wasClosed && tracked.Closed && Settings.Debug.LogMatchedAbyssPits.Value && _loggedAbyssPitMatches.Add(key + "|closed"))
+            DebugWindow.LogMsg($"[ThreatSense] Abyss pit closed: {DescribeAbyssPit(entity, path, minimapIconName)}", 5);
+    }
+
+    private AbyssPitState ReadAbyssPitState(Entity entity)
+    {
+        bool? chestOpened = null;
+        bool? mapVisible = null;
+        bool? mapHidden = null;
+        bool? isTargetable = null;
+        byte? transitionFlag1 = null;
+        string minimapIconName = string.Empty;
+
+        try
+        {
+            chestOpened = entity.IsOpened;
+        }
+        catch
+        {
+            // Some terrain entities do not expose the opened shortcut.
+        }
+
+        if (entity.TryGetComponent<Chest>(out var chest))
+            chestOpened = chestOpened == true || chest.IsOpened;
+
+        if (entity.TryGetComponent<MinimapIcon>(out var minimapIcon))
+        {
+            mapVisible = minimapIcon.IsVisible;
+            mapHidden = minimapIcon.IsHide;
+            minimapIconName = minimapIcon.Name ?? string.Empty;
+        }
+
+        if (entity.TryGetComponent<Targetable>(out _))
+        {
+            try
+            {
+                isTargetable = entity.IsTargetable;
+            }
+            catch
+            {
+                isTargetable = false;
+            }
+        }
+
+        if (entity.TryGetComponent<Transitionable>(out var transitionable))
+            transitionFlag1 = transitionable.Flag1;
+
+        return new AbyssPitState(chestOpened, mapVisible, mapHidden, isTargetable, transitionFlag1, minimapIconName);
+    }
+
+    private static bool IsAbyssPitClosed(TrackedAbyssPit tracked, AbyssPitState state, string path)
+    {
+        if (state.ChestOpened == true)
+            return true;
+
+        if (IsAbyssPitInactiveIcon(state.MinimapIconName))
+            return true;
+
+        if (ContainsClosedText(path))
+            return true;
+
+        if (tracked.WasTargetable && state.IsTargetable == false)
+            return true;
+
+        if (tracked.WasMapVisible && state.MapHidden == true && state.IsTargetable == false)
+            return true;
+
+        if (tracked.WasTransitionActive && state.TransitionFlag1 == 0)
+            return true;
+
+        return false;
+    }
+
+    private bool TryGetAbyssPitMatch(Entity entity, out string path, out string minimapIconName)
+    {
+        path = GetEffectPath(entity);
+        minimapIconName = GetMinimapIconName(entity);
+
+        if (IsAbyssPitMinimapIcon(minimapIconName))
+            return true;
+
+        if (!Settings.AbyssPitCounter.UsePathFallback.Value)
+            return false;
+
+        return IsAbyssPitPath(path);
+    }
+
+    private static string GetMinimapIconName(Entity entity)
+    {
+        try
+        {
+            return entity.TryGetComponent<MinimapIcon>(out var minimapIcon) ? minimapIcon.Name ?? string.Empty : string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static bool IsAbyssPitMinimapIcon(string minimapIconName)
+    {
+        return minimapIconName.Equals(AbyssPitActiveIcon, StringComparison.OrdinalIgnoreCase) ||
+               IsAbyssPitInactiveIcon(minimapIconName);
+    }
+
+    private static bool IsAbyssPitInactiveIcon(string minimapIconName)
+    {
+        return minimapIconName.Equals(AbyssPitInactiveIcon, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool IsAbyssPitPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        var patterns = Settings.AbyssPitCounter.PathContains ?? AbyssPitCounterSettings.DefaultPathContains.ToList();
+        return patterns.Any(part => !string.IsNullOrWhiteSpace(part) && path.Contains(part, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool ContainsClosedText(string path)
+    {
+        return path.Contains("closed", StringComparison.OrdinalIgnoreCase) ||
+               path.Contains("complete", StringComparison.OrdinalIgnoreCase) ||
+               path.Contains("completed", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetAbyssPitKey(Entity entity, string path, string minimapIconName)
+    {
+        if (IsAbyssPitMinimapIcon(minimapIconName))
+        {
+            try
+            {
+                var grid = entity.GridPos;
+                return $"pit:{(int)Math.Round(grid.X)}:{(int)Math.Round(grid.Y)}";
+            }
+            catch
+            {
+                // Fall back below if the grid position is unavailable.
+            }
+        }
+
+        try
+        {
+            if (entity.Address != 0)
+                return "addr:" + entity.Address.ToString("X");
+        }
+        catch
+        {
+            // Fall back to path plus grid position when the entity address is unavailable.
+        }
+
+        try
+        {
+            var grid = entity.GridPos;
+            return $"grid:{path}|{grid.X}:{grid.Y}";
+        }
+        catch
+        {
+            return "path:" + path;
+        }
+    }
+
+    private static string DescribeAbyssPit(Entity entity, string path, string minimapIconName)
+    {
+        try
+        {
+            var icon = string.IsNullOrWhiteSpace(minimapIconName) ? "no-icon" : minimapIconName;
+            return $"{entity.RenderName} [{entity.Type}] icon={icon} {path}";
+        }
+        catch
+        {
+            return string.IsNullOrWhiteSpace(minimapIconName) ? path : $"icon={minimapIconName} {path}";
+        }
     }
 
     private void ScanMonsterAffixes(bool drawGenericAffixes)
@@ -469,6 +825,126 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 
         var scale = entity.GetComponent<Positioned>()?.Scale ?? 1f;
         return Math.Max(20f, (baseRadius ?? 45f) * scale * rule.SizeMultiplier.Value * Settings.EffectCircleScale.Value);
+    }
+
+    private bool ShouldHideOverlayUnderPanels()
+    {
+        var ingameUi = GameController?.Game?.IngameState?.IngameUi;
+        if (ingameUi == null)
+            return false;
+
+        if (Settings.HideUnderFullscreenPanels.Value && ingameUi.FullscreenPanels.Any(x => x.IsVisible))
+            return true;
+
+        return Settings.HideUnderLargePanels.Value && ingameUi.LargePanels.Any(x => x.IsVisible);
+    }
+
+    private void DrawAbyssPitCounterOverlay()
+    {
+        if (!Settings.AbyssPitCounter.Enable.Value)
+            return;
+
+        var found = GetAbyssPitFoundCount();
+        var closed = GetAbyssPitClosedCount();
+        if (Settings.AbyssPitCounter.HideWhenNoPitsFound.Value && found <= 0 && closed <= 0)
+            return;
+
+        var label = string.IsNullOrWhiteSpace(Settings.AbyssPitCounter.Label.Value)
+            ? "Abyss Pits"
+            : Settings.AbyssPitCounter.Label.Value.Trim();
+        var text = $"{label}: {closed}/{Math.Max(found, closed)} closed";
+        var position = new Vector2(Settings.AbyssPitCounter.PositionX.Value, Settings.AbyssPitCounter.PositionY.Value);
+
+        using var textScale = Graphics.SetTextScale(Settings.AbyssPitCounter.TextScale.Value);
+        var textSize = Graphics.MeasureText(text, 15);
+        const float paddingX = 9f;
+        const float paddingY = 6f;
+        var box = new RectangleF(
+            position.X,
+            position.Y,
+            Math.Max(120f, textSize.X + paddingX * 2f),
+            Math.Max(28f, textSize.Y + paddingY * 2f));
+
+        Graphics.DrawBox(box, Settings.AbyssPitCounter.BackgroundColor.Value);
+        Graphics.DrawFrame(box, Settings.AbyssPitCounter.BorderColor.Value, 1);
+
+        var textColor = closed > 0 && closed >= found && found > 0
+            ? Settings.AbyssPitCounter.ClosedColor.Value
+            : Settings.AbyssPitCounter.TextColor.Value;
+        Graphics.DrawText(text, new Vector2(box.X + paddingX, box.Y + paddingY), textColor);
+    }
+
+    private int GetAbyssPitFoundCount()
+    {
+        var terrainCount = Settings.AbyssPitCounter.UseTerrainFeatureTotal.Value ? Math.Max(0, _abyssPitTerrainCount) : 0;
+        return Math.Max(terrainCount, _trackedAbyssPits.Count);
+    }
+
+    private int GetAbyssPitClosedCount()
+    {
+        return _trackedAbyssPits.Values.Count(x => x.Closed);
+    }
+
+    private void ResetAbyssPitTracking()
+    {
+        _trackedAbyssPits.Clear();
+        _loggedAbyssPitMatches.Clear();
+        _abyssPitTerrainCount = -1;
+        _abyssPitTerrainScanAttempted = false;
+    }
+
+    private bool IsPeacefulArea(AreaInstance area)
+    {
+        try
+        {
+            return area.IsPeaceful || area.IsTown || area.IsHideout;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private string GetAbyssPitAreaKey(AreaInstance area)
+    {
+        var rawName = SafeAreaValue(() => area.Area.Id);
+        var areaName = SafeAreaValue(() => area.Area.Name);
+        var instanceName = SafeAreaValue(() => area.Name);
+        var terrainAddress = GetObjectAddress(GameController?.IngameState?.Data?.Terrain);
+        var dimensions = SafeAreaValue(() => GameController?.IngameState?.Data?.AreaDimensions.ToString() ?? string.Empty);
+
+        return string.Join("|", rawName, areaName, instanceName, terrainAddress.ToString("X"), dimensions);
+    }
+
+    private static string SafeAreaValue(Func<string?> read)
+    {
+        try
+        {
+            return read() ?? string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static long GetObjectAddress(object? value)
+    {
+        if (value == null)
+            return 0;
+
+        try
+        {
+            var property = value.GetType().GetProperty("Address");
+            if (property?.GetValue(value) is { } address)
+                return Convert.ToInt64(address);
+        }
+        catch
+        {
+            // Address is best-effort only; area names/dimensions remain as fallback.
+        }
+
+        return 0;
     }
 
     private void DrawTarget(WarningTarget target)
@@ -866,6 +1342,75 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         DrawFloatSlider("Label scale", Settings.LabelScale, 1f, "Scale for warning text labels.");
     }
 
+    private void DrawAbyssPitCounterSettings()
+    {
+        if (!ImGui.CollapsingHeader("Abyss Pit Counter", ImGuiTreeNodeFlags.DefaultOpen))
+            return;
+
+        DrawToggle("Enable Abyss pit counter", Settings.AbyssPitCounter.Enable, "Tracks AbyssPitActive/AbyssPitInactive minimap-icon entities exposed by ExileCore. This does not require the MinimapIcons plugin to be enabled.");
+        DrawToggle("Only show after pit detected", Settings.AbyssPitCounter.HideWhenNoPitsFound, "When enabled, the counter is hidden until at least one Abyss pit has been seen in the current map. Disable this if you always want the counter visible.");
+        DrawToggle("Use terrain feature total", Settings.AbyssPitCounter.UseTerrainFeatureTotal, "Experimental. Counts matching TGT terrain features for the current map total. This can overcount Abyss art/layout pieces, so leave it off for normal pit tracking.");
+        DrawToggle("Use path fallback", Settings.AbyssPitCounter.UsePathFallback, "Experimental. Also counts entities whose path contains the configured substrings. Leave off for normal tracking; the reliable source is MinimapIcon.Name AbyssPitActive/AbyssPitInactive.");
+        DrawTextEditor("Counter label", Settings.AbyssPitCounter.Label);
+        DrawIntSlider("Counter X", Settings.AbyssPitCounter.PositionX);
+        DrawIntSlider("Counter Y", Settings.AbyssPitCounter.PositionY);
+        DrawFloatSlider("Counter text scale", Settings.AbyssPitCounter.TextScale, 1f);
+        DrawColorEditor("Counter text color", Settings.AbyssPitCounter.TextColor);
+        DrawColorEditor("Counter complete color", Settings.AbyssPitCounter.ClosedColor);
+        DrawColorEditor("Counter border color", Settings.AbyssPitCounter.BorderColor);
+        DrawColorEditor("Counter background color", Settings.AbyssPitCounter.BackgroundColor);
+
+        ImGui.TextDisabled($"Current area: {GetAbyssPitClosedCount()}/{GetAbyssPitFoundCount()} closed, {_trackedAbyssPits.Count} runtime pit entities tracked");
+
+        if (ImGui.TreeNode("Path matching"))
+        {
+            HelpMarker("Only used when the experimental terrain total or path fallback options are enabled. The normal counter uses explicit AbyssPitActive/AbyssPitInactive minimap icon names instead.");
+            DrawAbyssPitPathEditor();
+            ImGui.TreePop();
+        }
+    }
+
+    private void DrawAbyssPitPathEditor()
+    {
+        Settings.AbyssPitCounter.PathContains ??= AbyssPitCounterSettings.DefaultPathContains.ToList();
+
+        for (var i = 0; i < Settings.AbyssPitCounter.PathContains.Count; i++)
+        {
+            ImGui.PushID($"abyss_pit_path_{i}");
+            var value = Settings.AbyssPitCounter.PathContains[i] ?? string.Empty;
+            ImGui.SetNextItemWidth(420);
+            if (ImGui.InputText("##path", ref value, 256))
+            {
+                Settings.AbyssPitCounter.PathContains[i] = value;
+                ResetAbyssPitTracking();
+            }
+
+            ImGui.SameLine();
+            if (ImGui.SmallButton("Remove"))
+            {
+                Settings.AbyssPitCounter.PathContains.RemoveAt(i);
+                ResetAbyssPitTracking();
+                ImGui.PopID();
+                break;
+            }
+
+            ImGui.PopID();
+        }
+
+        if (ImGui.Button("Add path substring"))
+        {
+            Settings.AbyssPitCounter.PathContains.Add(string.Empty);
+            ResetAbyssPitTracking();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Reset path substrings"))
+        {
+            Settings.AbyssPitCounter.ResetPathContains();
+            ResetAbyssPitTracking();
+        }
+    }
+
     private void DrawAmanamuSettings()
     {
         if (!ImGui.CollapsingHeader("Amanamu's Void / Omen of Light", ImGuiTreeNodeFlags.DefaultOpen))
@@ -1028,6 +1573,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 
         DrawToggle("Log matched monsters", Settings.Debug.LogMatchedMonsters);
         DrawToggle("Log matched effects", Settings.Debug.LogMatchedEffects);
+        DrawToggle("Log matched Abyss pits", Settings.Debug.LogMatchedAbyssPits);
         DrawToggle("Collect unknown dangerous-looking effects", Settings.Debug.CollectUnknownEffects);
 
         DrawUnknownEffectsActions();
@@ -1207,6 +1753,23 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
     private sealed record AmanamuCloud(Vector3 Position, float Radius);
 
     private sealed record TrackedAmanamuTarget(WarningTarget Target, long LastSeenMs);
+
+    private sealed class TrackedAbyssPit
+    {
+        public string Key { get; init; } = string.Empty;
+        public string Path { get; set; } = string.Empty;
+        public string MinimapIconName { get; set; } = string.Empty;
+        public Vector3 Position { get; set; }
+        public bool Closed { get; set; }
+        public bool WasTargetable { get; set; }
+        public bool WasMapVisible { get; set; }
+        public bool WasTransitionActive { get; set; }
+        public long FirstSeenMs { get; init; }
+        public long LastSeenMs { get; set; }
+        public AbyssPitState LastState { get; set; } = new AbyssPitState(null, null, null, null, null, string.Empty);
+    }
+
+    private sealed record AbyssPitState(bool? ChestOpened, bool? MapVisible, bool? MapHidden, bool? IsTargetable, byte? TransitionFlag1, string MinimapIconName);
 
     private enum AmanamuVoidState
     {
