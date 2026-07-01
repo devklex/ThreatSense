@@ -1930,9 +1930,6 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         DrawColorEditor("Counter background color", Settings.AbyssPitCounter.BackgroundColor);
 
         ImGui.TextDisabled($"Current area: {GetAbyssPitClosedCount()}/{GetAbyssPitFoundCount()} closed, {_trackedAbyssPits.Count} runtime pit entities tracked");
-        if (ImGui.Button("Reset current map counter"))
-            ResetAbyssPitTracking();
-        HelpMarker("Clears only the live counter for the current area. It does not erase Abyss map history.");
 
         DrawAbyssMapHistorySettings();
         DrawAbyssPitAdvancedSettings();
@@ -1947,6 +1944,11 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         HelpMarker("These settings are fallback tools for troubleshooting. Terrain feature total scans the map TGT terrain files for matching Abyss art/features and can overcount. Path fallback counts runtime entities whose paths contain the configured substrings. Leave both off unless the normal counter misses pits.");
         DrawToggle("Use terrain feature total", Settings.AbyssPitCounter.UseTerrainFeatureTotal, "Experimental. Counts matching TGT terrain features for the current map total. This can overcount Abyss art/layout pieces, so leave it off for normal pit tracking.");
         DrawToggle("Use path fallback", Settings.AbyssPitCounter.UsePathFallback, "Experimental. Also counts entities whose path contains the configured substrings. Leave off for normal tracking; the reliable source is MinimapIcon.Name AbyssPitActive/AbyssPitInactive.");
+
+        ImGui.SeparatorText("Current map actions");
+        if (ImGui.Button("Reset live counter"))
+            ResetAbyssPitTracking();
+        HelpMarker("Clears only the live counter for the current area. It does not erase Abyss map history.");
 
         if (ImGui.Button("Dump Abyss markers"))
             DumpAbyssMarkers();
