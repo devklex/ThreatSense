@@ -28,6 +28,7 @@ public sealed class EffectRuleDefinition
     public string Color { get; set; } = "#FFFF00";
     public float SizeMultiplier { get; set; } = 1f;
     public bool RequireGroundEffectComponent { get; set; }
+    public bool MatchAnyEntityType { get; set; }
 
     [JsonIgnore]
     public Color ParsedColor => ParseColor(Color);

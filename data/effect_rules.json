@@ -10,6 +10,7 @@
         "VolatilePlantsVolatile",
         "TreeVolatile",
         "volatile_explode",
+        "flameblood_volatile_shield_explode",
         "CarnivorousPlantEater/volatile_root",
         "LeagueRitual/Daemons/VolatilePlantsVolatile"
       ],
@@ -250,11 +251,25 @@
       "sizeMultiplier": 1.2
     },
     {
+      "id": "ritual_wisp_anchor",
+      "name": "Ritual Wisp Anchor",
+      "category": "Helpful zone",
+      "pathContains": [
+        "Daemon/RitualWisp"
+      ],
+      "label": "RITUAL",
+      "defaultEnabled": true,
+      "color": "#40E0FF",
+      "sizeMultiplier": 5.0,
+      "matchAnyEntityType": true
+    },
+    {
       "id": "blood_orb",
       "name": "Blood Orb",
       "category": "Area hazard",
       "pathContains": [
-        "misc/blood_orbs/orb"
+        "misc/blood_orbs/orb",
+        "CaveDweller/ao/blood_orb_EMP"
       ],
       "label": "BLOOD",
       "defaultEnabled": true,
@@ -345,6 +360,7 @@
         "League_Abyss/PaleWalker/SoulExplode",
         "League_Abyss/Cocoons2/pustule_explode",
         "League_Abyss/Kulemak/explode",
+        "SwarmHost/ao/pustule_explode",
         "PustuleGroundSpawner"
       ],
       "label": "ABYSS",
@@ -358,7 +374,8 @@
       "category": "Explosion",
       "pathContains": [
         "League_Abyss/ExplodingRunes/Lightless_rune",
-        "MonsterMods/LeagueAbyss/LightlessRune"
+        "MonsterMods/LeagueAbyss/LightlessRune",
+        "MonsterMods/LeagueAbyss/Player/LightlessRune"
       ],
       "label": "RUNE",
       "defaultEnabled": true,
@@ -398,7 +415,9 @@
       "category": "Explosion",
       "pathContains": [
         "League_Delirium/DeliriumMonsters/Disgust/lightningExplode",
-        "League_Delirium/DeliriumMonsters/Spite/deceleratingLightningBallExplode"
+        "League_Delirium/DeliriumMonsters/Spite/deceleratingLightningBallExplode",
+        "League_Delirium/DeliriumMonsters/Rage/hitGround",
+        "League_Delirium/DeliriumMonsters/Rage/leaveGround"
       ],
       "label": "DELIRIUM",
       "defaultEnabled": true,
@@ -425,7 +444,11 @@
       "pathContains": [
         "SkitterBot/ao/mortar_explode",
         "SpittingSnake/ao/mortar_explode",
-        "VaalGuards/VaalGuard03/ao/mortar_explode"
+        "VaalGuards/VaalGuard03/ao/mortar_explode",
+        "PirateBarrel/ao/barrel_explode",
+        "VaalSorcerer/ao/BallLightning/orb",
+        "VaalSorcerer/ao/BallLightning/orb_bolt",
+        "League_Expedition_New/VaalArmour/lightningMine_explode"
       ],
       "label": "MORTAR",
       "defaultEnabled": true,
@@ -453,6 +476,7 @@
         "grd_Burning",
         "burned_ground",
         "burning_ground",
+        "ground_effects_v3/burning/burning_grd",
         "BurningGround",
         "GroundFire",
         "scorchedGroundMultiSlam"
@@ -489,6 +513,7 @@
         "shocked_ground",
         "ShockedGround",
         "ShockedGroundDaemon",
+        "League_Abyss/Cocoons2/abyss_lightning_ground",
         "surge_pulse"
       ],
       "label": "SHOCKED",

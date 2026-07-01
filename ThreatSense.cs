@@ -55,6 +55,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
     private bool _abyssPitTerrainScanAttempted;
     private int _lastMonsterCount;
     private int _lastEffectCount;
+    private int _lastDebugEffectCount;
     private bool _unknownEffectsDirty;
 
     public override bool Initialise()
@@ -147,15 +148,17 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
     public override void DrawSettings()
     {
         ImGui.TextDisabled($"ThreatSense {PluginVersion}");
-        ImGui.TextDisabled($"Visible warnings: {_targets.Count}, monsters: {_lastMonsterCount}, effects: {_lastEffectCount}");
+        ImGui.TextDisabled($"Visible warnings: {_targets.Count}, monsters: {_lastMonsterCount}, effects: {_lastEffectCount}, debug effects: {_lastDebugEffectCount}");
         ImGui.TextDisabled($"Abyss pits: {GetAbyssPitClosedCount()}/{GetAbyssPitFoundCount()} closed");
 
-        if (ImGui.Button("Reset to bundled defaults"))
+        if (ImGui.Button("Reset bundled rules"))
             Settings.ResetToBundledDefaults.OnPressed();
+        HelpMarker("Reloads the bundled monster affix and ground/effect rule lists. This does not reset personal display, Abyss, Amanamu, Ritual Wisp, or debug settings.");
 
         DrawGeneralSettings();
         DrawAbyssPitCounterSettings();
         DrawAmanamuSettings();
+        DrawRitualWispSettings();
         DrawMonsterAffixSettings();
         DrawEffectRuleSettings();
         DrawDebugSettings();
@@ -193,13 +196,25 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         _amanamuTargetsSeenThisScan.Clear();
         _lastMonsterCount = 0;
         _lastEffectCount = 0;
+        _lastDebugEffectCount = 0;
 
         ScanAbyssPits();
 
         var amanamuOverlayEnabled = Settings.AmanamuVoid.EnableSpecialStateOverlay.Value;
+        var ritualWispOverlayEnabled = Settings.RitualWisp.EnableSpecialOverlay.Value;
+        var effectScanningEnabled =
+            Settings.DrawGroundEffectWarnings.Value ||
+            amanamuOverlayEnabled ||
+            Settings.Debug.CollectUnknownEffects.Value;
 
-        if (Settings.DrawGroundEffectWarnings.Value || amanamuOverlayEnabled)
+        if (Settings.Debug.DrawAllEffectCandidates.Value)
+            ScanDebugEntityCandidates();
+
+        if (effectScanningEnabled)
             ScanGroundEffects(Settings.DrawGroundEffectWarnings.Value);
+
+        if (Settings.DrawGroundEffectWarnings.Value || ritualWispOverlayEnabled)
+            ScanAnyEntityPathRules();
 
         if (Settings.DrawMonsterAffixWarnings.Value || amanamuOverlayEnabled)
             ScanMonsterAffixes(Settings.DrawMonsterAffixWarnings.Value);
@@ -728,6 +743,53 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
             .Concat(GetEntities(EntityType.None));
     }
 
+    private void ScanAnyEntityPathRules()
+    {
+        var rules = Settings.EffectRules
+            .Where(x => x.MatchAnyEntityType.Value &&
+                        ((Settings.DrawGroundEffectWarnings.Value && x.Enabled.Value && !IsRitualWispRule(x)) ||
+                         (Settings.RitualWisp.EnableSpecialOverlay.Value && IsRitualWispRule(x))))
+            .ToList();
+        if (rules.Count == 0)
+            return;
+
+        var scanDistance = Math.Max(
+            Settings.MaxDrawDistance.Value,
+            Settings.RitualWisp.EnableSpecialOverlay.Value ? Settings.RitualWisp.MaxDrawDistance.Value : Settings.MaxDrawDistance.Value);
+        var seen = new HashSet<long>();
+        foreach (var entity in GetCachedEntities())
+        {
+            if (!TryAddCandidate(seen, entity))
+                continue;
+
+            if (!TryGetEntityDistance(entity, out var distance) || distance > scanDistance)
+                continue;
+
+            var path = GetEffectPath(entity);
+            if (string.IsNullOrWhiteSpace(path))
+                continue;
+
+            var rule = rules.FirstOrDefault(x => GetEffectMatcher(x)(path));
+            if (rule == null)
+                continue;
+
+            var maxDistance = IsRitualWispRule(rule)
+                ? Settings.RitualWisp.MaxDrawDistance.Value
+                : Settings.MaxDrawDistance.Value;
+            if (distance > maxDistance)
+                continue;
+
+            if (rule.RequireGroundEffectComponent.Value && !entity.TryGetComponent<GroundEffect>(out _))
+                continue;
+
+            _targets.Add(CreateEffectTarget(entity, rule, path));
+            _lastEffectCount++;
+
+            if (Settings.Debug.LogMatchedEffects.Value && _loggedEffectMatches.Add(rule.Id + "|" + path))
+                DebugWindow.LogMsg($"[ThreatSense] Entity path match: {rule.Name} -> {path}", 5);
+        }
+    }
+
     private IEnumerable<Entity> GetEntities(EntityType type)
     {
         try
@@ -824,11 +886,37 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 
     private WarningTarget CreateEffectTarget(Entity entity, EffectPathRule rule, string path)
     {
+        if (IsRitualWispRule(rule))
+            return CreateRitualWispTarget(entity, rule);
+
         var radius = EstimateEffectRadius(entity, rule);
         return new WarningTarget(entity, entity.Pos, radius, rule.Color.Value, LabelFor(rule, path), true, UseAmanamuDistance: IsAmanamuEffectRule(rule));
     }
 
+    private WarningTarget CreateRitualWispTarget(Entity entity, EffectPathRule rule)
+    {
+        var label = string.IsNullOrWhiteSpace(Settings.RitualWisp.Label.Value)
+            ? LabelFor(rule, entity.Path)
+            : Settings.RitualWisp.Label.Value;
+        return new WarningTarget(
+            entity,
+            entity.Pos,
+            EstimateEffectRadius(entity, Settings.RitualWisp.CircleSizeMultiplier.Value),
+            Settings.RitualWisp.Color.Value,
+            label,
+            true,
+            UseRitualWispDistance: true,
+            DrawPlayerGuideLine: Settings.RitualWisp.DrawPlayerGuideLine.Value,
+            RingThicknessOverride: Settings.RitualWisp.CircleThickness.Value,
+            PlayerGuideLineThicknessOverride: Settings.RitualWisp.GuideLineThickness.Value);
+    }
+
     private float EstimateEffectRadius(Entity entity, EffectPathRule rule)
+    {
+        return EstimateEffectRadius(entity, rule.SizeMultiplier.Value);
+    }
+
+    private float EstimateEffectRadius(Entity entity, float sizeMultiplier)
     {
         float? baseRadius = null;
         if (entity.TryGetComponent<GroundEffect>(out var groundEffect))
@@ -841,7 +929,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
             baseRadius = Math.Max(render.Bounds.X, render.Bounds.Y);
 
         var scale = entity.GetComponent<Positioned>()?.Scale ?? 1f;
-        return Math.Max(20f, (baseRadius ?? 45f) * scale * rule.SizeMultiplier.Value * Settings.EffectCircleScale.Value);
+        return Math.Max(20f, (baseRadius ?? 45f) * scale * sizeMultiplier * Settings.EffectCircleScale.Value);
     }
 
     private bool ShouldHideOverlayUnderPanels()
@@ -1108,6 +1196,9 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
             DrawAmanamuMapMarker(target);
         }
 
+        if (target.DrawPlayerGuideLine)
+            DrawPlayerGuideLine(target);
+
         if (Settings.DrawFilledCircles.Value)
             Graphics.DrawFilledCircleInWorld(target.Position, target.Radius, Color.FromArgb(Math.Min(80, (int)target.Color.A), target.Color), 48);
 
@@ -1118,18 +1209,22 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
             Graphics.DrawLine(start, end, Settings.AmanamuVoid.LinkThickness.Value, target.Color);
         }
 
-        Graphics.DrawCircleInWorld(target.Position, target.Radius, target.Color, Settings.CircleThickness.Value);
+        Graphics.DrawCircleInWorld(target.Position, target.Radius, target.Color, target.RingThicknessOverride ?? Settings.CircleThickness.Value);
 
         if (!Settings.ShowLabels.Value || string.IsNullOrWhiteSpace(target.Label))
             return;
 
-        var screenPos = RemoteMemoryObject.TheGame.IngameState.Camera.WorldToScreen(target.Position);
-        var textSize = Graphics.MeasureText(target.Label, 15);
-        Graphics.DrawText(target.Label, new Vector2(screenPos.X - textSize.X / 2f, screenPos.Y - target.Radius * 0.25f), target.Color);
+        DrawTargetLabel(target);
     }
 
     private float GetTargetMaxDrawDistance(WarningTarget target)
     {
+        if (target.UseDebugEffectDistance)
+            return Settings.Debug.AllEffectCandidateMaxDistance.Value;
+
+        if (target.UseRitualWispDistance)
+            return Settings.RitualWisp.MaxDrawDistance.Value;
+
         return target.UseAmanamuDistance ? Settings.AmanamuVoid.MaxDrawDistance.Value : Settings.MaxDrawDistance.Value;
     }
 
@@ -1209,6 +1304,23 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         Graphics.DrawLine(start, end, Settings.AmanamuVoid.RadarGuideLineThickness.Value, Color.FromArgb(230, target.Color));
     }
 
+    private void DrawPlayerGuideLine(WarningTarget target)
+    {
+        var player = GameController?.Player;
+        var camera = RemoteMemoryObject.TheGame?.IngameState?.Camera;
+        if (player == null || camera == null)
+            return;
+
+        var start = camera.WorldToScreen(player.Pos);
+        var end = camera.WorldToScreen(target.Position);
+        if (!IsFinite(start) || !IsFinite(end))
+            return;
+
+        var thickness = target.PlayerGuideLineThicknessOverride ?? Settings.CircleThickness.Value;
+        Graphics.DrawLine(start, end, thickness + 2, Color.Black);
+        Graphics.DrawLine(start, end, thickness, Color.FromArgb(230, target.Color));
+    }
+
     private bool TryWorldToMap(Vector3 worldPosition, out Vector2 mapPosition, out Vector2 mapCenter)
     {
         mapPosition = default;
@@ -1270,6 +1382,91 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         Graphics.DrawText(text, position + new Vector2(0, -offset), Color.Black);
         Graphics.DrawText(text, position + new Vector2(0, offset), Color.Black);
         Graphics.DrawText(text, position, color);
+    }
+
+    private void DrawTargetLabel(WarningTarget target)
+    {
+        var screenPos = RemoteMemoryObject.TheGame.IngameState.Camera.WorldToScreen(target.Position);
+        if (!IsFinite(screenPos))
+            return;
+
+        var textSize = Graphics.MeasureText(target.Label, 15);
+        var position = new Vector2(screenPos.X - textSize.X / 2f, screenPos.Y - target.Radius * 0.25f);
+
+        if (Settings.DrawLabelBackgrounds.Value)
+        {
+            const float paddingX = 4f;
+            const float paddingY = 2f;
+            var box = new RectangleF(
+                position.X - paddingX,
+                position.Y - paddingY,
+                textSize.X + paddingX * 2f,
+                textSize.Y + paddingY * 2f);
+            Graphics.DrawBox(box, Settings.LabelBackgroundColor.Value);
+        }
+
+        Graphics.DrawText(target.Label, position, target.Color);
+    }
+
+    private void ScanDebugEntityCandidates()
+    {
+        var seen = new HashSet<long>();
+        foreach (var entity in GetCachedEntities())
+        {
+            if (_lastDebugEffectCount >= Settings.Debug.AllEffectCandidateLimit.Value)
+                return;
+
+            if (!TryAddCandidate(seen, entity))
+                continue;
+
+            if (!TryGetEntityDistance(entity, out var distance) ||
+                distance > Settings.Debug.AllEffectCandidateMaxDistance.Value)
+                continue;
+
+            AddDebugEntityCandidate(entity, GetEffectPath(entity));
+        }
+    }
+
+    private void AddDebugEntityCandidate(Entity entity, string path)
+    {
+        if (_lastDebugEffectCount >= Settings.Debug.AllEffectCandidateLimit.Value)
+            return;
+
+        if (!TryGetEntityDistance(entity, out var distance) ||
+            distance > Settings.Debug.AllEffectCandidateMaxDistance.Value)
+            return;
+
+        var target = new WarningTarget(
+            entity,
+            entity.Pos,
+            EstimateEffectRadius(entity, Settings.Debug.AllEffectCandidateSizeMultiplier.Value),
+            Settings.Debug.AllEffectCandidateColor.Value,
+            MakeDebugEntityLabel(entity, path),
+            true,
+            UseDebugEffectDistance: true);
+
+        _targets.Add(target);
+        _lastDebugEffectCount++;
+
+        if (Settings.Debug.SaveAllDrawnEffectCandidates.Value && !string.IsNullOrWhiteSpace(path))
+            RecordUnknownEffect(path);
+    }
+
+    private bool TryGetEntityDistance(Entity entity, out float distance)
+    {
+        distance = float.MaxValue;
+        try
+        {
+            if (entity == null || !entity.IsValid)
+                return false;
+
+            distance = entity.DistancePlayer;
+            return float.IsFinite(distance);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool IsFinite(Vector2 value)
@@ -1377,6 +1574,11 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         return rule.Id.Equals("amanamus_void", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsRitualWispRule(EffectPathRule rule)
+    {
+        return rule.Id.Equals("ritual_wisp_anchor", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool IsEntityAlive(Entity entity)
     {
         try
@@ -1456,7 +1658,53 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
                path.Contains("shroud", StringComparison.OrdinalIgnoreCase) ||
                path.Contains("shade", StringComparison.OrdinalIgnoreCase) ||
                path.Contains("lightless", StringComparison.OrdinalIgnoreCase) ||
+               path.Contains("ritual", StringComparison.OrdinalIgnoreCase) ||
+               path.Contains("altar", StringComparison.OrdinalIgnoreCase) ||
+               path.Contains("rune", StringComparison.OrdinalIgnoreCase) ||
                path.Contains("void", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string MakeDebugEntityLabel(Entity entity, string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return SafeEntityType(entity);
+
+        var normalized = path.Replace('\\', '/');
+        var prefixes = new[]
+        {
+            "Metadata/Effects/Spells/monsters_effects/",
+            "Metadata/Effects/Spells/",
+            "Metadata/Effects/",
+            "Metadata/Monsters/"
+        };
+
+        foreach (var prefix in prefixes)
+        {
+            if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = normalized.Substring(prefix.Length);
+                break;
+            }
+        }
+
+        var parts = normalized.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+        var shortPath = parts.Length <= 3
+            ? normalized
+            : string.Join("/", parts.Skip(parts.Length - 3));
+
+        return $"{SafeEntityType(entity)} {shortPath}";
+    }
+
+    private static string SafeEntityType(Entity entity)
+    {
+        try
+        {
+            return entity?.Type.ToString() ?? "entity";
+        }
+        catch
+        {
+            return "entity";
+        }
     }
 
     private static string LabelFor(MonsterAffixRule rule)
@@ -1484,6 +1732,8 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         DrawToggle("Monster affix warnings", Settings.DrawMonsterAffixWarnings, "Draw world circles and labels around monsters whose ObjectMagicProperties.Mods match enabled dangerous affix rules.");
         DrawToggle("Ground / effect warnings", Settings.DrawGroundEffectWarnings, "Draw world circles and labels around spawned effect entities, such as beacons, volatiles, storms, and ground effects.");
         DrawToggle("Show labels", Settings.ShowLabels);
+        DrawToggle("Draw label backgrounds", Settings.DrawLabelBackgrounds, "Draw a configurable background behind world labels so text stays readable over bright effects.");
+        DrawColorEditor("Label background color", Settings.LabelBackgroundColor, "Color behind warning labels. Use the alpha channel to control opacity. Default is translucent black.");
         DrawToggle("Draw filled circles", Settings.DrawFilledCircles);
         DrawToggle("Hide under large panels", Settings.HideUnderLargePanels, "Suppress all overlays while large in-game panels are open so warning graphics do not cover UI.");
         DrawToggle("Hide under fullscreen panels", Settings.HideUnderFullscreenPanels, "Suppress all overlays while fullscreen in-game panels are open.");
@@ -1497,15 +1747,13 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 
     private void DrawAbyssPitCounterSettings()
     {
-        if (!ImGui.CollapsingHeader("Abyss Pit Counter", ImGuiTreeNodeFlags.DefaultOpen))
+        if (!ImGui.CollapsingHeader("Abyss Pit Counter", ImGuiTreeNodeFlags.None))
             return;
 
         DrawToggle("Enable Abyss pit counter", Settings.AbyssPitCounter.Enable, "Tracks AbyssPitActive/AbyssPitInactive minimap-icon entities exposed by ExileCore. This does not require the MinimapIcons plugin to be enabled.");
         DrawToggle("Only show after pit detected", Settings.AbyssPitCounter.HideWhenNoPitsFound, "When enabled, the counter is hidden until at least one Abyss pit has been seen in the current map. Disable this if you always want the counter visible.");
         DrawToggle("Record map history", Settings.AbyssPitCounter.RecordMapHistory, "Save the best observed Abyss pit count per map to a local personal data file. This only records pits ExileCore actually exposes while you are in the map.");
         DrawToggle("Show map best in counter", Settings.AbyssPitCounter.ShowMapBestInCounter, "Adds a second counter line showing the best observed pit count for the current map.");
-        DrawToggle("Use terrain feature total", Settings.AbyssPitCounter.UseTerrainFeatureTotal, "Experimental. Counts matching TGT terrain features for the current map total. This can overcount Abyss art/layout pieces, so leave it off for normal pit tracking.");
-        DrawToggle("Use path fallback", Settings.AbyssPitCounter.UsePathFallback, "Experimental. Also counts entities whose path contains the configured substrings. Leave off for normal tracking; the reliable source is MinimapIcon.Name AbyssPitActive/AbyssPitInactive.");
         DrawTextEditor("Counter label", Settings.AbyssPitCounter.Label);
         DrawIntSlider("Counter X", Settings.AbyssPitCounter.PositionX);
         DrawIntSlider("Counter Y", Settings.AbyssPitCounter.PositionY);
@@ -1519,10 +1767,23 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         ImGui.TextDisabled($"Current area: {GetAbyssPitClosedCount()}/{GetAbyssPitFoundCount()} closed, {_trackedAbyssPits.Count} runtime pit entities tracked");
 
         DrawAbyssMapHistorySettings();
+        DrawAbyssPitAdvancedSettings();
+    }
 
-        if (ImGui.TreeNode("Path matching"))
+    private void DrawAbyssPitAdvancedSettings()
+    {
+        if (!ImGui.CollapsingHeader("Abyss Advanced / Experimental", ImGuiTreeNodeFlags.None))
+            return;
+
+        ImGui.TextDisabled("Normal pit tracking uses ExileCore's AbyssPitActive/AbyssPitInactive minimap-icon names.");
+        HelpMarker("These settings are fallback tools for troubleshooting. Terrain feature total scans the map TGT terrain files for matching Abyss art/features and can overcount. Path fallback counts runtime entities whose paths contain the configured substrings. Leave both off unless the normal counter misses pits.");
+        DrawToggle("Use terrain feature total", Settings.AbyssPitCounter.UseTerrainFeatureTotal, "Experimental. Counts matching TGT terrain features for the current map total. This can overcount Abyss art/layout pieces, so leave it off for normal pit tracking.");
+        DrawToggle("Use path fallback", Settings.AbyssPitCounter.UsePathFallback, "Experimental. Also counts entities whose path contains the configured substrings. Leave off for normal tracking; the reliable source is MinimapIcon.Name AbyssPitActive/AbyssPitInactive.");
+
+        var pathMatchingOpen = ImGui.TreeNode("Path matching");
+        HelpMarker("Only used by the experimental path fallback and terrain feature total options. Each value is a case-insensitive substring matched against exposed entity or terrain paths.");
+        if (pathMatchingOpen)
         {
-            HelpMarker("Only used when the experimental terrain total or path fallback options are enabled. The normal counter uses explicit AbyssPitActive/AbyssPitInactive minimap icon names instead.");
             DrawAbyssPitPathEditor();
             ImGui.TreePop();
         }
@@ -1654,7 +1915,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 
     private void DrawAmanamuSettings()
     {
-        if (!ImGui.CollapsingHeader("Amanamu's Void / Omen of Light", ImGuiTreeNodeFlags.DefaultOpen))
+        if (!ImGui.CollapsingHeader("Amanamu's Void / Omen of Light", ImGuiTreeNodeFlags.None))
             return;
 
         ImGui.TextDisabled("Special handling for Amanamu's Void rares. Red means pull it out; green means kill it.");
@@ -1694,6 +1955,27 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         DrawColorEditor("Unknown state color", Settings.AmanamuVoid.UnknownVoidColor, "Color used when the Amanamu rare is detected but the cloud/inside state cannot be confirmed.");
     }
 
+    private void DrawRitualWispSettings()
+    {
+        if (!ImGui.CollapsingHeader("Ritual Wisp", ImGuiTreeNodeFlags.None))
+            return;
+
+        ImGui.TextDisabled("Highlights the Ritual orb/wisp so the beneficial stand-in area is easier to see.");
+        DrawToggle("Enable Ritual Wisp overlay", Settings.RitualWisp.EnableSpecialOverlay, "Detects the RitualWisp daemon and draws a large world ring centered on it.");
+        DrawIntSlider("Wisp max draw distance", Settings.RitualWisp.MaxDrawDistance, "Separate scan/draw distance for the Ritual Wisp marker.");
+        DrawFloatSlider("Wisp ring size", Settings.RitualWisp.CircleSizeMultiplier, 5f, "Multiplier for the Ritual Wisp ring radius. Increase this if the visible Ritual circle is larger than the detected wisp marker.");
+        DrawIntSlider("Wisp ring thickness", Settings.RitualWisp.CircleThickness, "Line thickness for only the Ritual Wisp ring. This does not affect the global circle thickness.");
+
+        ImGui.SeparatorText("Guide line");
+        DrawToggle("Draw character-to-wisp line", Settings.RitualWisp.DrawPlayerGuideLine, "Draws a screen-space line from your character to the Ritual Wisp.");
+        DrawIntSlider("Wisp guide line thickness", Settings.RitualWisp.GuideLineThickness, "Line thickness for the character-to-wisp guide line.");
+
+        ImGui.SeparatorText("Label and color");
+        DrawTextEditor("Wisp label", Settings.RitualWisp.Label);
+        DrawColorEditor("Wisp color", Settings.RitualWisp.Color);
+        ImGui.TextDisabled("Matched path: Daemon/RitualWisp");
+    }
+
     private void DrawMonsterAffixSettings()
     {
         if (!ImGui.CollapsingHeader($"Monster Affixes ({Settings.MonsterAffixes.Count})"))
@@ -1704,14 +1986,23 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         DrawSearchBox("Search monster affixes", ref _affixSearch);
 
         foreach (var group in Settings.MonsterAffixes
-                     .Where(x => MatchesSearch(x.Id, x.Name, x.Category, x.Type, _affixSearch))
                      .GroupBy(x => string.IsNullOrWhiteSpace(x.Category) ? "Other" : x.Category)
                      .OrderBy(x => x.Key))
         {
-            if (!ImGui.TreeNode($"{group.Key} ({group.Count(x => x.Enabled.Value)}/{group.Count()} enabled)"))
+            var rules = group.OrderBy(x => x.Name).ToList();
+            var displayedRules = rules
+                .Where(x => MatchesSearch(x.Id, x.Name, x.Category, x.Type, _affixSearch))
+                .ToList();
+            if (displayedRules.Count == 0)
                 continue;
 
-            foreach (var rule in group.OrderBy(x => x.Name))
+            var filteredSuffix = displayedRules.Count == rules.Count ? string.Empty : $", showing {displayedRules.Count}";
+            if (!ImGui.TreeNode($"{group.Key} ({rules.Count(x => x.Enabled.Value)}/{rules.Count} enabled{filteredSuffix})"))
+                continue;
+
+            DrawMonsterAffixBulkButtons(group.Key, rules);
+
+            foreach (var rule in displayedRules)
                 DrawMonsterAffixRule(rule);
 
             ImGui.TreePop();
@@ -1720,20 +2011,76 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 
     private void DrawEffectRuleSettings()
     {
-        if (!ImGui.CollapsingHeader($"Ground / Effect Rules ({Settings.EffectRules.Count})"))
+        var visibleRules = Settings.EffectRules.Where(x => !IsRitualWispRule(x)).ToList();
+        if (!ImGui.CollapsingHeader($"Ground / Effect Rules ({visibleRules.Count})"))
             return;
 
         ImGui.TextDisabled("These draw circles around spawned ground/effect entities by path.");
         HelpMarker("Effect rules match live entity paths, not monster mods. Some effects expose a real GroundEffect radius; others use render bounds and size multipliers.");
         DrawSearchBox("Search effect rules", ref _effectSearch);
 
-        foreach (var rule in Settings.EffectRules
-                     .Where(x => MatchesSearch(x.Id, x.Name, x.Category, string.Join(" ", x.PathContains), _effectSearch))
-                     .OrderBy(x => x.Category)
-                     .ThenBy(x => x.Name))
+        foreach (var group in visibleRules
+                     .GroupBy(x => string.IsNullOrWhiteSpace(x.Category) ? "Other" : x.Category)
+                     .OrderBy(x => x.Key))
         {
-            DrawEffectRule(rule);
+            var rules = group.OrderBy(x => x.Name).ToList();
+            var displayedRules = rules
+                .Where(x => MatchesSearch(x.Id, x.Name, x.Category, string.Join(" ", x.PathContains), _effectSearch))
+                .ToList();
+            if (displayedRules.Count == 0)
+                continue;
+
+            var filteredSuffix = displayedRules.Count == rules.Count ? string.Empty : $", showing {displayedRules.Count}";
+            if (!ImGui.TreeNode($"{group.Key} ({rules.Count(x => x.Enabled.Value)}/{rules.Count} enabled{filteredSuffix})##effect_group_{group.Key}"))
+                continue;
+
+            DrawEffectRuleBulkButtons(group.Key, rules);
+
+            foreach (var rule in displayedRules)
+                DrawEffectRule(rule);
+
+            ImGui.TreePop();
         }
+    }
+
+    private void DrawMonsterAffixBulkButtons(string groupName, IReadOnlyList<MonsterAffixRule> rules)
+    {
+        ImGui.PushID($"monster_bulk_{groupName}");
+        if (ImGui.SmallButton("Select All"))
+        {
+            foreach (var rule in rules)
+                rule.Enabled.Value = true;
+            RebuildAffixLookup();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.SmallButton("Deselect All"))
+        {
+            foreach (var rule in rules)
+                rule.Enabled.Value = false;
+            RebuildAffixLookup();
+        }
+
+        ImGui.PopID();
+    }
+
+    private static void DrawEffectRuleBulkButtons(string groupName, IReadOnlyList<EffectPathRule> rules)
+    {
+        ImGui.PushID($"effect_bulk_{groupName}");
+        if (ImGui.SmallButton("Select All"))
+        {
+            foreach (var rule in rules)
+                rule.Enabled.Value = true;
+        }
+
+        ImGui.SameLine();
+        if (ImGui.SmallButton("Deselect All"))
+        {
+            foreach (var rule in rules)
+                rule.Enabled.Value = false;
+        }
+
+        ImGui.PopID();
     }
 
     private void DrawMonsterAffixRule(MonsterAffixRule rule)
@@ -1770,6 +2117,8 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
             DrawTextEditor("Label", rule.Label);
             DrawFloatSlider("Size multiplier", rule.SizeMultiplier, 1f, "Per-rule multiplier for the detected effect radius. Use Set 1.00 to return to the raw detected size.");
             DrawToggle("Require GroundEffect component", rule.RequireGroundEffectComponent, "Only draw this rule when the entity exposes a real GroundEffect component. Useful for avoiding false positives from visual-only paths.");
+            if (rule.MatchAnyEntityType.Value)
+                ImGui.TextDisabled("Matches any entity type.");
             ImGui.TextDisabled("Path contains:");
             foreach (var path in rule.PathContains)
                 ImGui.BulletText(path);
@@ -1816,6 +2165,12 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         DrawToggle("Log matched effects", Settings.Debug.LogMatchedEffects);
         DrawToggle("Log matched Abyss pits", Settings.Debug.LogMatchedAbyssPits);
         DrawToggle("Collect unknown dangerous-looking effects", Settings.Debug.CollectUnknownEffects);
+        DrawToggle("Draw all nearby entity candidates", Settings.Debug.DrawAllEffectCandidates, "Diagnostic overlay for finding hidden marker paths. It scans the full cached entity list, not just effect buckets, and draws rings/short labels for nearby valid entities.");
+        DrawToggle("Save all drawn entity candidates", Settings.Debug.SaveAllDrawnEffectCandidates, "When the all-entity diagnostic overlay is enabled, also save every drawn entity path to the unknown-effects dump. This can collect noise, so leave it off unless gathering data.");
+        DrawIntSlider("All-entity max distance", Settings.Debug.AllEffectCandidateMaxDistance, "Maximum distance for the all-entity diagnostic overlay.");
+        DrawIntSlider("All-entity label limit", Settings.Debug.AllEffectCandidateLimit, "Maximum diagnostic entity labels per scan. Lower this if the screen gets too busy.");
+        DrawFloatSlider("All-entity size multiplier", Settings.Debug.AllEffectCandidateSizeMultiplier, 1f, "Circle size multiplier for diagnostic entity markers.");
+        DrawColorEditor("All-entity marker color", Settings.Debug.AllEffectCandidateColor);
 
         DrawUnknownEffectsActions();
     }
@@ -2126,5 +2481,20 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         Outside
     }
 
-    private sealed record WarningTarget(Entity Entity, Vector3 Position, float Radius, Color Color, string Label, bool IsEffect, Vector3? LinkPosition = null, bool UseAmanamuDistance = false, bool DrawAmanamuMapMarker = false, bool AllowInvalidEntity = false);
+    private sealed record WarningTarget(
+        Entity Entity,
+        Vector3 Position,
+        float Radius,
+        Color Color,
+        string Label,
+        bool IsEffect,
+        Vector3? LinkPosition = null,
+        bool UseAmanamuDistance = false,
+        bool DrawAmanamuMapMarker = false,
+        bool AllowInvalidEntity = false,
+        bool UseDebugEffectDistance = false,
+        bool UseRitualWispDistance = false,
+        bool DrawPlayerGuideLine = false,
+        int? RingThicknessOverride = null,
+        int? PlayerGuideLineThicknessOverride = null);
 }

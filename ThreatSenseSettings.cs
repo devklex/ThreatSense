@@ -17,6 +17,7 @@ public class ThreatSenseSettings : ISettings
     public ToggleNode DrawMonsterAffixWarnings { get; set; } = new ToggleNode(true);
     public ToggleNode DrawGroundEffectWarnings { get; set; } = new ToggleNode(true);
     public ToggleNode ShowLabels { get; set; } = new ToggleNode(true);
+    public ToggleNode DrawLabelBackgrounds { get; set; } = new ToggleNode(true);
     public ToggleNode DrawFilledCircles { get; set; } = new ToggleNode(false);
     public ToggleNode HideUnderLargePanels { get; set; } = new ToggleNode(true);
     public ToggleNode HideUnderFullscreenPanels { get; set; } = new ToggleNode(true);
@@ -29,9 +30,13 @@ public class ThreatSenseSettings : ISettings
 
     public ColorNode DefaultMonsterWarningColor { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(255, 255, 90, 90));
     public ColorNode DefaultGroundWarningColor { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(255, 255, 180, 0));
+    public ColorNode LabelBackgroundColor { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(180, 0, 0, 0));
 
     [Menu(null, CollapsedByDefault = false)]
     public AmanamuSettings AmanamuVoid { get; set; } = new AmanamuSettings();
+
+    [Menu(null, CollapsedByDefault = false)]
+    public RitualWispSettings RitualWisp { get; set; } = new RitualWispSettings();
 
     [Menu(null, CollapsedByDefault = false)]
     public AbyssPitCounterSettings AbyssPitCounter { get; set; } = new AbyssPitCounterSettings();
@@ -50,9 +55,30 @@ public class ThreatSenseSettings : ISettings
     {
         AmanamuVoid ??= new AmanamuSettings();
         AmanamuVoid.EnsureDefaults();
+        RitualWisp ??= new RitualWispSettings();
+        RitualWisp.EnsureDefaults();
         AbyssPitCounter ??= new AbyssPitCounterSettings();
         AbyssPitCounter.EnsureDefaults();
         Debug ??= new DebugSettings();
+        Debug.EnsureDefaults();
+
+        Enable ??= new ToggleNode(false);
+        DrawMonsterAffixWarnings ??= new ToggleNode(true);
+        DrawGroundEffectWarnings ??= new ToggleNode(true);
+        ShowLabels ??= new ToggleNode(true);
+        DrawLabelBackgrounds ??= new ToggleNode(true);
+        DrawFilledCircles ??= new ToggleNode(false);
+        HideUnderLargePanels ??= new ToggleNode(true);
+        HideUnderFullscreenPanels ??= new ToggleNode(true);
+        ScanIntervalMs ??= new RangeNode<int>(120, 33, 1000);
+        MaxDrawDistance ??= new RangeNode<int>(140, 20, 300);
+        CircleThickness ??= new RangeNode<int>(4, 1, 12);
+        MonsterCircleScale ??= new RangeNode<float>(1.4f, 0.2f, 8f);
+        EffectCircleScale ??= new RangeNode<float>(1.0f, 0.2f, 10f);
+        LabelScale ??= new RangeNode<float>(1.0f, 0.5f, 2.5f);
+        DefaultMonsterWarningColor ??= new ColorNode(System.Drawing.Color.FromArgb(255, 255, 90, 90));
+        DefaultGroundWarningColor ??= new ColorNode(System.Drawing.Color.FromArgb(255, 255, 180, 0));
+        LabelBackgroundColor ??= new ColorNode(System.Drawing.Color.FromArgb(180, 0, 0, 0));
 
         if (DefaultsVersion < 7)
         {
@@ -118,6 +144,7 @@ public class ThreatSenseSettings : ISettings
                 saved.PathContains = definition.PathContains.ToList();
                 saved.Label = definition.Label;
                 saved.EnsureDefaults();
+                saved.MatchAnyEntityType.Value = definition.MatchAnyEntityType;
                 merged.Add(saved);
             }
             else
@@ -187,6 +214,30 @@ public class AmanamuSettings
         InsideVoidColor ??= new ColorNode(System.Drawing.Color.FromArgb(255, 255, 40, 40));
         OutsideVoidColor ??= new ColorNode(System.Drawing.Color.FromArgb(255, 40, 255, 90));
         UnknownVoidColor ??= new ColorNode(System.Drawing.Color.FromArgb(255, 180, 90, 255));
+    }
+}
+
+public class RitualWispSettings
+{
+    public ToggleNode EnableSpecialOverlay { get; set; } = new ToggleNode(true);
+    public ToggleNode DrawPlayerGuideLine { get; set; } = new ToggleNode(true);
+    public RangeNode<int> MaxDrawDistance { get; set; } = new RangeNode<int>(180, 20, 500);
+    public RangeNode<float> CircleSizeMultiplier { get; set; } = new RangeNode<float>(5.0f, 0.5f, 12f);
+    public RangeNode<int> CircleThickness { get; set; } = new RangeNode<int>(6, 1, 20);
+    public RangeNode<int> GuideLineThickness { get; set; } = new RangeNode<int>(3, 1, 12);
+    public TextNode Label { get; set; } = new TextNode("RITUAL");
+    public ColorNode Color { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(255, 64, 224, 255));
+
+    public void EnsureDefaults()
+    {
+        EnableSpecialOverlay ??= new ToggleNode(true);
+        DrawPlayerGuideLine ??= new ToggleNode(true);
+        MaxDrawDistance ??= new RangeNode<int>(180, 20, 500);
+        CircleSizeMultiplier ??= new RangeNode<float>(5.0f, 0.5f, 12f);
+        CircleThickness ??= new RangeNode<int>(6, 1, 20);
+        GuideLineThickness ??= new RangeNode<int>(3, 1, 12);
+        Label ??= new TextNode("RITUAL");
+        Color ??= new ColorNode(System.Drawing.Color.FromArgb(255, 64, 224, 255));
     }
 }
 
@@ -262,6 +313,26 @@ public class DebugSettings
     public ToggleNode LogMatchedEffects { get; set; } = new ToggleNode(false);
     public ToggleNode LogMatchedAbyssPits { get; set; } = new ToggleNode(false);
     public ToggleNode CollectUnknownEffects { get; set; } = new ToggleNode(false);
+    public ToggleNode DrawAllEffectCandidates { get; set; } = new ToggleNode(false);
+    public ToggleNode SaveAllDrawnEffectCandidates { get; set; } = new ToggleNode(false);
+    public RangeNode<int> AllEffectCandidateMaxDistance { get; set; } = new RangeNode<int>(90, 20, 300);
+    public RangeNode<int> AllEffectCandidateLimit { get; set; } = new RangeNode<int>(120, 10, 500);
+    public RangeNode<float> AllEffectCandidateSizeMultiplier { get; set; } = new RangeNode<float>(1.0f, 0.1f, 5.0f);
+    public ColorNode AllEffectCandidateColor { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(230, 80, 220, 255));
+
+    public void EnsureDefaults()
+    {
+        LogMatchedMonsters ??= new ToggleNode(false);
+        LogMatchedEffects ??= new ToggleNode(false);
+        LogMatchedAbyssPits ??= new ToggleNode(false);
+        CollectUnknownEffects ??= new ToggleNode(false);
+        DrawAllEffectCandidates ??= new ToggleNode(false);
+        SaveAllDrawnEffectCandidates ??= new ToggleNode(false);
+        AllEffectCandidateMaxDistance ??= new RangeNode<int>(90, 20, 300);
+        AllEffectCandidateLimit ??= new RangeNode<int>(120, 10, 500);
+        AllEffectCandidateSizeMultiplier ??= new RangeNode<float>(1.0f, 0.1f, 5.0f);
+        AllEffectCandidateColor ??= new ColorNode(System.Drawing.Color.FromArgb(230, 80, 220, 255));
+    }
 }
 
 public class MonsterAffixRule
@@ -330,6 +401,7 @@ public class EffectPathRule
     public TextNode Label { get; set; } = new TextNode(string.Empty);
     public RangeNode<float> SizeMultiplier { get; set; } = new RangeNode<float>(1f, 0.1f, 12f);
     public ToggleNode RequireGroundEffectComponent { get; set; } = new ToggleNode(false);
+    public ToggleNode MatchAnyEntityType { get; set; } = new ToggleNode(false);
 
     public void EnsureDefaults()
     {
@@ -339,6 +411,7 @@ public class EffectPathRule
         Label ??= new TextNode(string.Empty);
         SizeMultiplier ??= new RangeNode<float>(1f, 0.1f, 12f);
         RequireGroundEffectComponent ??= new ToggleNode(false);
+        MatchAnyEntityType ??= new ToggleNode(false);
     }
 
     public static EffectPathRule FromDefinition(EffectRuleDefinition definition)
@@ -353,7 +426,8 @@ public class EffectPathRule
             Color = new ColorNode(definition.ParsedColor),
             Label = new TextNode(definition.Label),
             SizeMultiplier = new RangeNode<float>(definition.SizeMultiplier, 0.1f, 12f),
-            RequireGroundEffectComponent = new ToggleNode(definition.RequireGroundEffectComponent)
+            RequireGroundEffectComponent = new ToggleNode(definition.RequireGroundEffectComponent),
+            MatchAnyEntityType = new ToggleNode(definition.MatchAnyEntityType)
         };
     }
 }
