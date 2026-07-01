@@ -64,6 +64,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
     private string _currentAbyssAreaId = string.Empty;
     private string _currentAbyssRunKey = string.Empty;
     private bool _currentAbyssRunRecorded;
+    private bool _insideMapSideArea;
     private int _abyssPitTerrainCount = -1;
     private bool _abyssPitTerrainScanAttempted;
     private int _lastMonsterCount;
@@ -201,16 +202,30 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         if (!IsPeacefulArea(area))
         {
             var areaKey = GetAbyssPitAreaKey(area);
-            if (!string.Equals(areaKey, _currentAbyssPitAreaKey, StringComparison.Ordinal))
+            var isMapSideArea = IsMapSideArea(area);
+            if ((isMapSideArea || _insideMapSideArea) && !string.IsNullOrWhiteSpace(_currentAbyssPitAreaKey))
+            {
+                if (Settings.Debug.LogMatchedAbyssPits.Value)
+                    DebugWindow.LogMsg($"[ThreatSense] Preserving Abyss pit counter through map side-area transition: {DescribeArea(area)}", 5);
+
+                _insideMapSideArea = isMapSideArea;
+            }
+            else if (!string.Equals(areaKey, _currentAbyssPitAreaKey, StringComparison.Ordinal))
             {
                 ResetAbyssPitTracking();
                 _currentAbyssPitAreaKey = areaKey;
                 SetCurrentAbyssMap(area, areaKey);
+                _insideMapSideArea = false;
             }
             else if (string.IsNullOrWhiteSpace(_currentAbyssMapKey))
             {
                 SetCurrentAbyssMap(area, areaKey);
+                _insideMapSideArea = false;
             }
+        }
+        else
+        {
+            _insideMapSideArea = false;
         }
 
         base.AreaChange(area);
@@ -1251,6 +1266,42 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         {
             return false;
         }
+    }
+
+    private static bool IsMapSideArea(AreaInstance area)
+    {
+        return ContainsMapSideAreaName(SafeAreaValue(() => area.Area.Id)) ||
+               ContainsMapSideAreaName(SafeAreaValue(() => area.Area.Name)) ||
+               ContainsMapSideAreaName(SafeAreaValue(() => area.Name));
+    }
+
+    private static bool ContainsMapSideAreaName(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        return value.Contains("Abyss_Depths", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Abyssal Depths", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Abyssal_Depths", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Abyss_Boss1", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Abyss_Boss2", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Abyss_Boss_01", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Abyss_Boss_02", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Lightless Void", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Lightless_Void", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Dark Domain", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Dark_Domain", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Delirium_HungerBoss", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Loathsome Mire", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Loathsome_Mire", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string DescribeArea(AreaInstance area)
+    {
+        var id = SafeAreaValue(() => area.Area.Id);
+        var name = SafeAreaValue(() => area.Area.Name);
+        var instanceName = SafeAreaValue(() => area.Name);
+        return string.Join(" / ", new[] { id, name, instanceName }.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
     private string GetAbyssPitAreaKey(AreaInstance area)
