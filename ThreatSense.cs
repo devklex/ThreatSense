@@ -2177,7 +2177,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
                 continue;
 
             var filteredSuffix = displayedRules.Count == rules.Count ? string.Empty : $", showing {displayedRules.Count}";
-            if (!ImGui.TreeNode($"{group.Key} ({rules.Count(x => x.Enabled.Value)}/{rules.Count} enabled{filteredSuffix})"))
+            if (!ImGui.TreeNode($"{group.Key} ({rules.Count(x => x.Enabled.Value)}/{rules.Count} enabled{filteredSuffix})###monster_group_{group.Key}"))
                 continue;
 
             DrawMonsterAffixBulkButtons(group.Key, rules);
@@ -2211,7 +2211,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
                 continue;
 
             var filteredSuffix = displayedRules.Count == rules.Count ? string.Empty : $", showing {displayedRules.Count}";
-            if (!ImGui.TreeNode($"{group.Key} ({rules.Count(x => x.Enabled.Value)}/{rules.Count} enabled{filteredSuffix})##effect_group_{group.Key}"))
+            if (!ImGui.TreeNode($"{group.Key} ({rules.Count(x => x.Enabled.Value)}/{rules.Count} enabled{filteredSuffix})###effect_group_{group.Key}"))
                 continue;
 
             DrawEffectRuleBulkButtons(group.Key, rules);
