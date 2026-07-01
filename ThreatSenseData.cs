@@ -14,6 +14,7 @@ public sealed class MonsterAffixDefinition
     public string GenerationType { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
     public string Text { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
     public bool DefaultEnabled { get; set; }
 }
 

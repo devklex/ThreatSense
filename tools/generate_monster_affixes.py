@@ -61,11 +61,106 @@ CURATED_DEFAULT_ENABLED_IDS = {
     "MonsterAbyssSoulcano1",
     "MonsterAbyssLightlessFaction1",
     "PlayerMonsterAbyssLightlessFaction1",
+    # High-impact rare and Abyss affixes curated for default ThreatSense warnings.
+    "MonsterAbyssMeteor",
+    "PlayerMonsterAbyssMeteor",
+    "MonsterBombardier1",
+    "PlayerMonsterBombardier1",
+    "MonsterGlacialPrison1",
+    "PlayerMonsterGlacialPrison1",
+    "MonsterAbyssLastGasp1",
+    "PlayerMonsterAbyssLastGasp1",
+    "MonsterAbyssPitSplitting",
+    "PlayerMonsterAbyssPitSplitting",
+    "MonsterAbyssImmuneAura1",
+    "PlayerMonsterAbyssImmuneAura1",
+    "MonsterImmuneAura1",
+    "MonsterImmuneAura2",
+    "PlayerMonsterImmuneAura1",
+    "PlayerMonsterImmuneAura2",
+    "MonsterPreventRecoveryAura1",
+    "MonsterTemporalAura1",
+    "PlayerMonsterTemporalAura1",
+    "PlayerMonsterTemporalAuraMinion1",
+    "MonsterProximalTangibility1",
+    "PlayerMonsterProximalTangibility1",
 }
 
 DISPLAY_NAME_OVERRIDES = {
     "MonsterAbyssLightlessFaction1": "Amanamu's Void",
     "PlayerMonsterAbyssLightlessFaction1": "Amanamu's Void",
+    "MonsterAbyssMeteor": "Meteoric Demise",
+    "PlayerMonsterAbyssMeteor": "Meteoric Demise",
+    "MonsterBombardier1": "Bombardier",
+    "PlayerMonsterBombardier1": "Bombardier",
+    "MonsterGlacialPrison1": "Glacial Prison",
+    "PlayerMonsterGlacialPrison1": "Glacial Prison",
+    "MonsterAbyssLastGasp1": "Kurgal's Last Gasp",
+    "PlayerMonsterAbyssLastGasp1": "Kurgal's Last Gasp",
+    "MonsterAbyssPitSplitting": "Ulaman's Legion / Pit Splitting",
+    "PlayerMonsterAbyssPitSplitting": "Ulaman's Legion / Pit Splitting",
+    "MonsterAbyssImmuneAura1": "Invulnerability Aura",
+    "PlayerMonsterAbyssImmuneAura1": "Invulnerability Aura",
+    "MonsterImmuneAura1": "Invulnerability Aura",
+    "MonsterImmuneAura2": "Invulnerability Aura",
+    "PlayerMonsterImmuneAura1": "Invulnerability Aura",
+    "PlayerMonsterImmuneAura2": "Invulnerability Aura",
+    "MonsterPreventRecoveryAura1": "Prevent Recovery Aura",
+    "MonsterTemporalAura1": "Temporal Aura",
+    "PlayerMonsterTemporalAura1": "Temporal Aura",
+    "PlayerMonsterTemporalAuraMinion1": "Temporal Aura",
+    "MonsterProximalTangibility1": "Proximal Tangibility",
+    "PlayerMonsterProximalTangibility1": "Proximal Tangibility",
+}
+
+CATEGORY_OVERRIDES = {
+    "MonsterAbyssMeteor": "Death / explosion",
+    "PlayerMonsterAbyssMeteor": "Death / explosion",
+    "MonsterBombardier1": "Death / explosion",
+    "PlayerMonsterBombardier1": "Death / explosion",
+    "MonsterGlacialPrison1": "Utility danger",
+    "PlayerMonsterGlacialPrison1": "Utility danger",
+    "MonsterAbyssLastGasp1": "Death / explosion",
+    "PlayerMonsterAbyssLastGasp1": "Death / explosion",
+    "MonsterAbyssPitSplitting": "Utility danger",
+    "PlayerMonsterAbyssPitSplitting": "Utility danger",
+    "MonsterAbyssImmuneAura1": "Utility danger",
+    "PlayerMonsterAbyssImmuneAura1": "Utility danger",
+    "MonsterImmuneAura1": "Utility danger",
+    "MonsterImmuneAura2": "Utility danger",
+    "PlayerMonsterImmuneAura1": "Utility danger",
+    "PlayerMonsterImmuneAura2": "Utility danger",
+    "MonsterPreventRecoveryAura1": "Utility danger",
+    "MonsterTemporalAura1": "Utility danger",
+    "PlayerMonsterTemporalAura1": "Utility danger",
+    "PlayerMonsterTemporalAuraMinion1": "Utility danger",
+    "MonsterProximalTangibility1": "Utility danger",
+    "PlayerMonsterProximalTangibility1": "Utility danger",
+}
+
+LABEL_OVERRIDES = {
+    "MonsterAbyssMeteor": "METEOR",
+    "PlayerMonsterAbyssMeteor": "METEOR",
+    "MonsterBombardier1": "METEOR",
+    "PlayerMonsterBombardier1": "METEOR",
+    "MonsterGlacialPrison1": "PRISON",
+    "PlayerMonsterGlacialPrison1": "PRISON",
+    "MonsterAbyssLastGasp1": "LAST GASP",
+    "PlayerMonsterAbyssLastGasp1": "LAST GASP",
+    "MonsterAbyssPitSplitting": "SPLIT",
+    "PlayerMonsterAbyssPitSplitting": "SPLIT",
+    "MonsterAbyssImmuneAura1": "IMMUNE",
+    "PlayerMonsterAbyssImmuneAura1": "IMMUNE",
+    "MonsterImmuneAura1": "IMMUNE",
+    "MonsterImmuneAura2": "IMMUNE",
+    "PlayerMonsterImmuneAura1": "IMMUNE",
+    "PlayerMonsterImmuneAura2": "IMMUNE",
+    "MonsterPreventRecoveryAura1": "NO RECOVER",
+    "MonsterTemporalAura1": "TEMPORAL",
+    "PlayerMonsterTemporalAura1": "TEMPORAL",
+    "PlayerMonsterTemporalAuraMinion1": "TEMPORAL",
+    "MonsterProximalTangibility1": "PROXIMAL",
+    "PlayerMonsterProximalTangibility1": "PROXIMAL",
 }
 
 DEFAULT_ENABLED_FRAGMENTS = (
@@ -163,6 +258,9 @@ def display_name(mod_id: str, record: dict) -> str:
 
 
 def category_for(mod_id: str, record: dict) -> str:
+    if mod_id in CATEGORY_OVERRIDES:
+        return CATEGORY_OVERRIDES[mod_id]
+
     haystack = " ".join(
         [
             mod_id,
@@ -247,17 +345,19 @@ def main() -> None:
         if record.get("domain") != "monster":
             continue
 
-        entries.append(
-            {
-                "id": mod_id,
-                "name": display_name(mod_id, record),
-                "type": record.get("type") or "",
-                "generationType": record.get("generation_type") or "",
-                "category": category_for(mod_id, record),
-                "text": clean_game_text(record.get("text") or ""),
-                "defaultEnabled": default_enabled(mod_id, record),
-            }
-        )
+        entry = {
+            "id": mod_id,
+            "name": display_name(mod_id, record),
+            "type": record.get("type") or "",
+            "generationType": record.get("generation_type") or "",
+            "category": category_for(mod_id, record),
+            "text": clean_game_text(record.get("text") or ""),
+            "defaultEnabled": default_enabled(mod_id, record),
+        }
+        label = LABEL_OVERRIDES.get(mod_id)
+        if label:
+            entry["label"] = label
+        entries.append(entry)
 
     entries.sort(key=lambda x: (x["category"], x["name"].lower(), x["id"].lower()))
     output = {

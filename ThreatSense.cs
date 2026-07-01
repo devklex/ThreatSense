@@ -24,6 +24,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
     private const string PluginVersion = "v0.1";
     private const string UnknownEffectsDumpFileName = "UnknownEffectsDump.txt";
     private const string AbyssMapHistoryFileName = "abyss_map_history.json";
+    private const string AbyssMarkerDumpFileName = "AbyssMarkerDump.txt";
     private const string AbyssPitActiveIcon = "AbyssPitActive";
     private const string AbyssPitInactiveIcon = "AbyssPitInactive";
 
@@ -56,6 +57,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
     private int _lastMonsterCount;
     private int _lastEffectCount;
     private int _lastDebugEffectCount;
+    private bool _abyssMapHistoryDirty;
     private bool _unknownEffectsDirty;
 
     public override bool Initialise()
@@ -167,6 +169,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 
     public override void AreaChange(AreaInstance area)
     {
+        FlushPersistentData(false);
         _targets.Clear();
         _amanamuClouds.Clear();
         _trackedAmanamuTargets.Clear();
@@ -187,6 +190,18 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         }
 
         base.AreaChange(area);
+    }
+
+    public override void OnPluginDestroyForHotReload()
+    {
+        FlushPersistentData(false);
+        base.OnPluginDestroyForHotReload();
+    }
+
+    public override void Dispose()
+    {
+        FlushPersistentData(false);
+        base.Dispose();
     }
 
     private void ScanTargets()
@@ -697,8 +712,8 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
             if (string.IsNullOrWhiteSpace(path))
                 continue;
 
-            var rule = Settings.EffectRules.FirstOrDefault(x => GetEffectMatcher(x)(path));
-            if ((rule == null || !rule.Enabled.Value) && Settings.AmanamuVoid.EnableSpecialStateOverlay.Value)
+            var rule = Settings.EffectRules.FirstOrDefault(x => x.Enabled.Value && GetEffectMatcher(x)(path));
+            if (rule == null && Settings.AmanamuVoid.EnableSpecialStateOverlay.Value)
                 rule = Settings.EffectRules.FirstOrDefault(x => IsAmanamuEffectRule(x) && GetEffectMatcher(x)(path));
 
             if (rule == null)
@@ -707,10 +722,6 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
                     RecordUnknownEffect(path);
                 continue;
             }
-
-            var allowAmanamuSpecialEffect = Settings.AmanamuVoid.EnableSpecialStateOverlay.Value && IsAmanamuEffectRule(rule);
-            if (!rule.Enabled.Value && !allowAmanamuSpecialEffect)
-                continue;
 
             if (rule.RequireGroundEffectComponent.Value && !entity.TryGetComponent<GroundEffect>(out _))
                 continue;
@@ -1121,7 +1132,12 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
             changed = true;
         }
 
-        entry.LastSeenUtc = now.ToString("O");
+        var lastSeenUtc = now.ToString("O");
+        if (!string.Equals(entry.LastSeenUtc, lastSeenUtc, StringComparison.Ordinal))
+        {
+            entry.LastSeenUtc = lastSeenUtc;
+            _abyssMapHistoryDirty = true;
+        }
 
         if (changed)
             SaveAbyssMapHistory(false);
@@ -1765,6 +1781,9 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         DrawColorEditor("Counter background color", Settings.AbyssPitCounter.BackgroundColor);
 
         ImGui.TextDisabled($"Current area: {GetAbyssPitClosedCount()}/{GetAbyssPitFoundCount()} closed, {_trackedAbyssPits.Count} runtime pit entities tracked");
+        if (ImGui.Button("Reset current map counter"))
+            ResetAbyssPitTracking();
+        HelpMarker("Clears only the live counter for the current area. It does not erase Abyss map history.");
 
         DrawAbyssMapHistorySettings();
         DrawAbyssPitAdvancedSettings();
@@ -1779,6 +1798,14 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         HelpMarker("These settings are fallback tools for troubleshooting. Terrain feature total scans the map TGT terrain files for matching Abyss art/features and can overcount. Path fallback counts runtime entities whose paths contain the configured substrings. Leave both off unless the normal counter misses pits.");
         DrawToggle("Use terrain feature total", Settings.AbyssPitCounter.UseTerrainFeatureTotal, "Experimental. Counts matching TGT terrain features for the current map total. This can overcount Abyss art/layout pieces, so leave it off for normal pit tracking.");
         DrawToggle("Use path fallback", Settings.AbyssPitCounter.UsePathFallback, "Experimental. Also counts entities whose path contains the configured substrings. Leave off for normal tracking; the reliable source is MinimapIcon.Name AbyssPitActive/AbyssPitInactive.");
+
+        if (ImGui.Button("Dump Abyss markers"))
+            DumpAbyssMarkers();
+        HelpMarker("Writes currently exposed Abyss marker candidates to a text file with entity type, grid position, minimap icon state, targetable/chest/transition state, and path.");
+
+        ImGui.SameLine();
+        if (ImGui.Button("Copy Abyss dump path"))
+            ImGui.SetClipboardText(GetAbyssMarkerDumpPath());
 
         var pathMatchingOpen = ImGui.TreeNode("Path matching");
         HelpMarker("Only used by the experimental path fallback and terrain feature total options. Each value is a case-insensitive substring matched against exposed entity or terrain paths.");
@@ -2175,6 +2202,101 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         DrawUnknownEffectsActions();
     }
 
+    private void DumpAbyssMarkers()
+    {
+        var dumpPath = GetAbyssMarkerDumpPath();
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(dumpPath)!);
+            var lines = new List<string>
+            {
+                "# ThreatSense Abyss marker dump",
+                "# Runtime MinimapIcon.Name == AbyssPitActive/AbyssPitInactive is the primary signal. Path matches below are diagnostic only.",
+                "TimestampUtc\tEntityType\tGridPosition\tMinimapIcon.Name\tMinimapIcon.IsVisible\tMinimapIcon.IsHide\tIsTargetable\tChest.IsOpened\tTransitionable.Flag1\tPath"
+            };
+
+            foreach (var entity in GetCachedEntities())
+            {
+                try
+                {
+                    if (entity == null)
+                        continue;
+
+                    var path = GetEffectPath(entity);
+                    var minimapIconName = GetMinimapIconName(entity);
+                    if (!IsAbyssPitMinimapIcon(minimapIconName) && !IsAbyssPitPath(path))
+                        continue;
+
+                    var state = ReadAbyssPitState(entity);
+                    lines.Add(string.Join("\t", new[]
+                    {
+                        DateTimeOffset.UtcNow.ToString("O"),
+                        DumpValue(ReadEntityType(entity)),
+                        DumpValue(ReadGridPosition(entity)),
+                        DumpValue(state.MinimapIconName),
+                        DumpValue(state.MapVisible),
+                        DumpValue(state.MapHidden),
+                        DumpValue(state.IsTargetable),
+                        DumpValue(state.ChestOpened),
+                        DumpValue(state.TransitionFlag1),
+                        DumpValue(path)
+                    }));
+                }
+                catch (Exception ex)
+                {
+                    lines.Add(DateTimeOffset.UtcNow.ToString("O") + "\t<entity read failed>\t" + DumpValue(ex.Message));
+                }
+            }
+
+            File.WriteAllLines(dumpPath, lines);
+            DebugWindow.LogMsg($"[ThreatSense] Wrote {Math.Max(0, lines.Count - 3)} Abyss marker rows to {dumpPath}", 5);
+        }
+        catch (Exception ex)
+        {
+            DebugWindow.LogError($"[ThreatSense] Failed to write Abyss marker dump: {ex.Message}");
+        }
+    }
+
+    private string GetAbyssMarkerDumpPath()
+    {
+        var directory = string.IsNullOrWhiteSpace(ConfigDirectory) ? DirectoryFullName : ConfigDirectory;
+        return Path.Combine(directory, AbyssMarkerDumpFileName);
+    }
+
+    private static string ReadEntityType(Entity entity)
+    {
+        try
+        {
+            return entity.Type.ToString();
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string ReadGridPosition(Entity entity)
+    {
+        try
+        {
+            var grid = entity.GridPos;
+            return $"{grid.X:0.##},{grid.Y:0.##}";
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string DumpValue(object? value)
+    {
+        return (value?.ToString() ?? string.Empty)
+            .Replace('\t', ' ')
+            .Replace('\r', ' ')
+            .Replace('\n', ' ')
+            .Trim();
+    }
+
     private void LoadAbyssMapHistory()
     {
         var path = GetAbyssMapHistoryPath();
@@ -2220,6 +2342,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
             };
 
             File.WriteAllText(path, JsonConvert.SerializeObject(file, Formatting.Indented));
+            _abyssMapHistoryDirty = false;
 
             if (showLog)
                 DebugWindow.LogMsg($"[ThreatSense] Wrote {_abyssMapHistory.Count} Abyss map history rows to {path}", 5);
@@ -2234,6 +2357,18 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
     {
         var directory = string.IsNullOrWhiteSpace(ConfigDirectory) ? DirectoryFullName : ConfigDirectory;
         return Path.Combine(directory, AbyssMapHistoryFileName);
+    }
+
+    private void FlushPersistentData(bool showLog)
+    {
+        if (_trackedAbyssPits.Count > 0)
+            UpdateAbyssMapHistory();
+
+        if (_abyssMapHistoryDirty && _abyssMapHistory.Count > 0)
+            SaveAbyssMapHistory(showLog);
+
+        if (_unknownEffectsDirty)
+            DumpUnknownEffects(showLog);
     }
 
     private void OpenAbyssMapHistoryFolder()

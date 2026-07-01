@@ -3388,21 +3388,23 @@
     },
     {
       "id": "MonsterGlacialPrison1",
-      "name": "Monster Mod Ice Prison",
+      "name": "Glacial Prison",
       "type": "MonsterModIcePrison",
       "generationType": "unique",
-      "category": "Element / ailment",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "PRISON",
+      "defaultEnabled": true
     },
     {
       "id": "PlayerMonsterGlacialPrison1",
-      "name": "Monster Mod Ice Prison",
+      "name": "Glacial Prison",
       "type": "MonsterModIcePrison",
       "generationType": "unique",
-      "category": "Element / ailment",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "PRISON",
+      "defaultEnabled": true
     },
     {
       "id": "BarrelofSpidersBossDaemon",
@@ -4513,12 +4515,13 @@
     },
     {
       "id": "MonsterAbyssMeteor",
-      "name": "Abyssal",
+      "name": "Meteoric Demise",
       "type": "MonsterModFireMortar",
       "generationType": "prefix",
-      "category": "Ground effect",
+      "category": "Death / explosion",
       "text": "",
-      "defaultEnabled": false
+      "label": "METEOR",
+      "defaultEnabled": true
     },
     {
       "id": "MonsterAbyssPustuleGround1",
@@ -4531,12 +4534,13 @@
     },
     {
       "id": "PlayerMonsterAbyssMeteor",
-      "name": "Abyssal",
+      "name": "Meteoric Demise",
       "type": "MonsterModFireMortar",
       "generationType": "prefix",
-      "category": "Ground effect",
+      "category": "Death / explosion",
       "text": "",
-      "defaultEnabled": false
+      "label": "METEOR",
+      "defaultEnabled": true
     },
     {
       "id": "PlayerMonsterAbyssPustuleGround1",
@@ -4711,21 +4715,23 @@
     },
     {
       "id": "MonsterBombardier1",
-      "name": "Ethereal",
+      "name": "Bombardier",
       "type": "MonsterModFireMortar",
       "generationType": "prefix",
-      "category": "Ground effect",
+      "category": "Death / explosion",
       "text": "",
-      "defaultEnabled": false
+      "label": "METEOR",
+      "defaultEnabled": true
     },
     {
       "id": "PlayerMonsterBombardier1",
-      "name": "Ethereal",
+      "name": "Bombardier",
       "type": "MonsterModFireMortar",
       "generationType": "prefix",
-      "category": "Ground effect",
+      "category": "Death / explosion",
       "text": "",
-      "defaultEnabled": false
+      "label": "METEOR",
+      "defaultEnabled": true
     },
     {
       "id": "BetrayalTargetDropsLeader",
@@ -19579,21 +19585,23 @@
     },
     {
       "id": "MonsterAbyssImmuneAura1",
-      "name": "Abyssal",
+      "name": "Invulnerability Aura",
       "type": "MonsterProximalTangibility",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "IMMUNE",
+      "defaultEnabled": true
     },
     {
       "id": "MonsterAbyssLastGasp1",
-      "name": "Abyssal",
+      "name": "Kurgal's Last Gasp",
       "type": "MonsterModRevivesMinions",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Death / explosion",
       "text": "",
-      "defaultEnabled": false
+      "label": "LAST GASP",
+      "defaultEnabled": true
     },
     {
       "id": "MonsterAbyssLeechAura",
@@ -19606,39 +19614,43 @@
     },
     {
       "id": "MonsterAbyssPitSplitting",
-      "name": "Abyssal",
+      "name": "Ulaman's Legion / Pit Splitting",
       "type": "MonsterModSoulEater",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "SPLIT",
+      "defaultEnabled": true
     },
     {
       "id": "PlayerMonsterAbyssImmuneAura1",
-      "name": "Abyssal",
+      "name": "Invulnerability Aura",
       "type": "MonsterProximalTangibility",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "IMMUNE",
+      "defaultEnabled": true
     },
     {
       "id": "PlayerMonsterAbyssLastGasp1",
-      "name": "Abyssal",
+      "name": "Kurgal's Last Gasp",
       "type": "MonsterModRevivesMinions",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Death / explosion",
       "text": "",
-      "defaultEnabled": false
+      "label": "LAST GASP",
+      "defaultEnabled": true
     },
     {
       "id": "PlayerMonsterAbyssPitSplitting",
-      "name": "Abyssal",
+      "name": "Ulaman's Legion / Pit Splitting",
       "type": "MonsterModSoulEater",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "SPLIT",
+      "defaultEnabled": true
     },
     {
       "id": "MonsterAbyssLightlessFaction1",
@@ -19660,12 +19672,13 @@
     },
     {
       "id": "MonsterProximalTangibility1",
-      "name": "Ethereal",
+      "name": "Proximal Tangibility",
       "type": "MonsterProximalTangibility",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "PROXIMAL",
+      "defaultEnabled": true
     },
     {
       "id": "MonsterProximalTangibilityHidden1",
@@ -19678,12 +19691,13 @@
     },
     {
       "id": "PlayerMonsterProximalTangibility1",
-      "name": "Ethereal",
+      "name": "Proximal Tangibility",
       "type": "MonsterProximalTangibility",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "PROXIMAL",
+      "defaultEnabled": true
     },
     {
       "id": "MonsterSoulEater1",
@@ -19750,39 +19764,43 @@
     },
     {
       "id": "MonsterImmuneAura1",
-      "name": "Monster Mod Benevolent Guardian",
+      "name": "Invulnerability Aura",
       "type": "MonsterModBenevolentGuardian",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "IMMUNE",
+      "defaultEnabled": true
     },
     {
       "id": "MonsterImmuneAura2",
-      "name": "Monster Mod Benevolent Guardian",
+      "name": "Invulnerability Aura",
       "type": "MonsterModBenevolentGuardian",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "IMMUNE",
+      "defaultEnabled": true
     },
     {
       "id": "PlayerMonsterImmuneAura1",
-      "name": "Monster Mod Benevolent Guardian",
+      "name": "Invulnerability Aura",
       "type": "MonsterModBenevolentGuardian",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "IMMUNE",
+      "defaultEnabled": true
     },
     {
       "id": "PlayerMonsterImmuneAura2",
-      "name": "Monster Mod Benevolent Guardian",
+      "name": "Invulnerability Aura",
       "type": "MonsterModBenevolentGuardian",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "IMMUNE",
+      "defaultEnabled": true
     },
     {
       "id": "MonsterElementalWaller1",
@@ -19903,12 +19921,13 @@
     },
     {
       "id": "MonsterPreventRecoveryAura1",
-      "name": "Monster Mod Prevent Recovery Aura",
+      "name": "Prevent Recovery Aura",
       "type": "MonsterModPreventRecoveryAura",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "NO RECOVER",
+      "defaultEnabled": true
     },
     {
       "id": "MonsterFlaskRemovalAura1",
@@ -20011,30 +20030,33 @@
     },
     {
       "id": "MonsterTemporalAura1",
-      "name": "Monster Mod Temporal Aura",
+      "name": "Temporal Aura",
       "type": "MonsterModTemporalAura",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "TEMPORAL",
+      "defaultEnabled": true
     },
     {
       "id": "PlayerMonsterTemporalAura1",
-      "name": "Monster Mod Temporal Aura",
+      "name": "Temporal Aura",
       "type": "MonsterModTemporalAura",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "TEMPORAL",
+      "defaultEnabled": true
     },
     {
       "id": "PlayerMonsterTemporalAuraMinion1",
-      "name": "Monster Mod Temporal Aura",
+      "name": "Temporal Aura",
       "type": "MonsterModTemporalAura",
       "generationType": "prefix",
-      "category": "Rare affix",
+      "category": "Utility danger",
       "text": "",
-      "defaultEnabled": false
+      "label": "TEMPORAL",
+      "defaultEnabled": true
     },
     {
       "id": "PlayerMonsterPreventRecoveryAura1",

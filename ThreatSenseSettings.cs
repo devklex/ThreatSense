@@ -11,7 +11,37 @@ namespace ThreatSense;
 
 public class ThreatSenseSettings : ISettings
 {
-    private const int CurrentDefaultsVersion = 9;
+    private const int CurrentDefaultsVersion = 11;
+
+    private static readonly HashSet<string> Version10RecommendedAffixIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "MonsterAbyssMeteor",
+        "PlayerMonsterAbyssMeteor",
+        "MonsterBombardier1",
+        "PlayerMonsterBombardier1",
+        "MonsterGlacialPrison1",
+        "PlayerMonsterGlacialPrison1",
+        "MonsterAbyssLastGasp1",
+        "PlayerMonsterAbyssLastGasp1",
+        "MonsterAbyssPitSplitting",
+        "PlayerMonsterAbyssPitSplitting",
+        "MonsterAbyssImmuneAura1",
+        "PlayerMonsterAbyssImmuneAura1",
+        "MonsterImmuneAura1",
+        "MonsterImmuneAura2",
+        "MonsterPreventRecoveryAura1",
+        "MonsterTemporalAura1",
+        "MonsterProximalTangibility1",
+        "PlayerMonsterProximalTangibility1"
+    };
+
+    private static readonly HashSet<string> Version11RecommendedAffixIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "PlayerMonsterImmuneAura1",
+        "PlayerMonsterImmuneAura2",
+        "PlayerMonsterTemporalAura1",
+        "PlayerMonsterTemporalAuraMinion1"
+    };
 
     public ToggleNode Enable { get; set; } = new ToggleNode(false);
     public ToggleNode DrawMonsterAffixWarnings { get; set; } = new ToggleNode(true);
@@ -32,13 +62,13 @@ public class ThreatSenseSettings : ISettings
     public ColorNode DefaultGroundWarningColor { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(255, 255, 180, 0));
     public ColorNode LabelBackgroundColor { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(180, 0, 0, 0));
 
-    [Menu(null, CollapsedByDefault = false)]
+    [Menu(null, CollapsedByDefault = true)]
     public AmanamuSettings AmanamuVoid { get; set; } = new AmanamuSettings();
 
-    [Menu(null, CollapsedByDefault = false)]
+    [Menu(null, CollapsedByDefault = true)]
     public RitualWispSettings RitualWisp { get; set; } = new RitualWispSettings();
 
-    [Menu(null, CollapsedByDefault = false)]
+    [Menu(null, CollapsedByDefault = true)]
     public AbyssPitCounterSettings AbyssPitCounter { get; set; } = new AbyssPitCounterSettings();
 
     [Menu(null, CollapsedByDefault = true)]
@@ -86,7 +116,13 @@ public class ThreatSenseSettings : ISettings
             AbyssPitCounter.UsePathFallback.Value = false;
         }
 
-        MonsterAffixes = MergeMonsterAffixes(MonsterAffixes, affixDefinitions);
+        var recommendedAffixIdsToApply = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (DefaultsVersion < 10)
+            recommendedAffixIdsToApply.UnionWith(Version10RecommendedAffixIds);
+        if (DefaultsVersion < 11)
+            recommendedAffixIdsToApply.UnionWith(Version11RecommendedAffixIds);
+
+        MonsterAffixes = MergeMonsterAffixes(MonsterAffixes, affixDefinitions, recommendedAffixIdsToApply);
         EffectRules = MergeEffectRules(EffectRules, effectDefinitions);
         DefaultsVersion = CurrentDefaultsVersion;
     }
@@ -98,7 +134,7 @@ public class ThreatSenseSettings : ISettings
         DefaultsVersion = CurrentDefaultsVersion;
     }
 
-    private static List<MonsterAffixRule> MergeMonsterAffixes(IEnumerable<MonsterAffixRule>? existing, IReadOnlyList<MonsterAffixDefinition> definitions)
+    private static List<MonsterAffixRule> MergeMonsterAffixes(IEnumerable<MonsterAffixRule>? existing, IReadOnlyList<MonsterAffixDefinition> definitions, IReadOnlySet<string> recommendedAffixIdsToApply)
     {
         var existingById = (existing ?? Enumerable.Empty<MonsterAffixRule>())
             .Where(x => !string.IsNullOrWhiteSpace(x.Id))
@@ -110,12 +146,27 @@ public class ThreatSenseSettings : ISettings
         {
             if (existingById.TryGetValue(definition.Id, out var saved))
             {
+                var oldAutoLabel = MonsterAffixRule.MakeShortLabel(new MonsterAffixDefinition { Id = saved.Id, Name = saved.Name });
                 saved.Name = definition.Name;
                 saved.Category = definition.Category;
                 saved.Type = definition.Type;
                 saved.GenerationType = definition.GenerationType;
                 saved.Text = definition.Text;
                 saved.EnsureDefaults();
+                if (!string.IsNullOrWhiteSpace(definition.Label) &&
+                    (string.IsNullOrWhiteSpace(saved.Label.Value) ||
+                     saved.Label.Value.Equals(oldAutoLabel, StringComparison.OrdinalIgnoreCase) ||
+                     recommendedAffixIdsToApply.Contains(definition.Id)))
+                {
+                    saved.Label.Value = definition.Label;
+                }
+
+                if (definition.DefaultEnabled && recommendedAffixIdsToApply.Contains(definition.Id))
+                {
+                    saved.Enabled.Value = true;
+                    saved.Color.Value = MonsterAffixRule.ColorForCategory(definition.Category);
+                }
+
                 merged.Add(saved);
             }
             else
@@ -142,8 +193,11 @@ public class ThreatSenseSettings : ISettings
                 saved.Name = definition.Name;
                 saved.Category = definition.Category;
                 saved.PathContains = definition.PathContains.ToList();
-                saved.Label = definition.Label;
                 saved.EnsureDefaults();
+
+                if (!string.IsNullOrWhiteSpace(definition.Label) && string.IsNullOrWhiteSpace(saved.Label.Value))
+                    saved.Label.Value = definition.Label;
+
                 saved.MatchAnyEntityType.Value = definition.MatchAnyEntityType;
                 merged.Add(saved);
             }
@@ -370,14 +424,17 @@ public class MonsterAffixRule
         };
     }
 
-    private static string MakeShortLabel(MonsterAffixDefinition definition)
+    public static string MakeShortLabel(MonsterAffixDefinition definition)
     {
+        if (!string.IsNullOrWhiteSpace(definition.Label))
+            return definition.Label.Trim();
+
         var basis = !string.IsNullOrWhiteSpace(definition.Name) ? definition.Name : definition.Id;
         var words = basis.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
         return words.Length == 0 ? "DANGER" : string.Join(" ", words.Take(2)).ToUpperInvariant();
     }
 
-    private static Color ColorForCategory(string category)
+    public static Color ColorForCategory(string category)
     {
         return category switch
         {
