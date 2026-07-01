@@ -11,7 +11,7 @@ namespace ThreatSense;
 
 public class ThreatSenseSettings : ISettings
 {
-    private const int CurrentDefaultsVersion = 8;
+    private const int CurrentDefaultsVersion = 9;
 
     public ToggleNode Enable { get; set; } = new ToggleNode(false);
     public ToggleNode DrawMonsterAffixWarnings { get; set; } = new ToggleNode(true);
@@ -205,10 +205,13 @@ public class AbyssPitCounterSettings
     public ToggleNode UseTerrainFeatureTotal { get; set; } = new ToggleNode(false);
     public ToggleNode UsePathFallback { get; set; } = new ToggleNode(false);
     public ToggleNode HideWhenNoPitsFound { get; set; } = new ToggleNode(true);
+    public ToggleNode RecordMapHistory { get; set; } = new ToggleNode(true);
+    public ToggleNode ShowMapBestInCounter { get; set; } = new ToggleNode(true);
     public TextNode Label { get; set; } = new TextNode("Abyss Pits");
     public RangeNode<int> PositionX { get; set; } = new RangeNode<int>(20, 0, 3840);
     public RangeNode<int> PositionY { get; set; } = new RangeNode<int>(220, 0, 2160);
     public RangeNode<float> TextScale { get; set; } = new RangeNode<float>(1.0f, 0.5f, 2.5f);
+    public RangeNode<int> HistoryRowsShown { get; set; } = new RangeNode<int>(25, 5, 200);
     public ColorNode TextColor { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(255, 235, 235, 235));
     public ColorNode ClosedColor { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(255, 80, 255, 120));
     public ColorNode BorderColor { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(220, 180, 120, 255));
@@ -221,10 +224,13 @@ public class AbyssPitCounterSettings
         UseTerrainFeatureTotal ??= new ToggleNode(false);
         UsePathFallback ??= new ToggleNode(false);
         HideWhenNoPitsFound ??= new ToggleNode(true);
+        RecordMapHistory ??= new ToggleNode(true);
+        ShowMapBestInCounter ??= new ToggleNode(true);
         Label ??= new TextNode("Abyss Pits");
         PositionX ??= new RangeNode<int>(20, 0, 3840);
         PositionY ??= new RangeNode<int>(220, 0, 2160);
         TextScale ??= new RangeNode<float>(1.0f, 0.5f, 2.5f);
+        HistoryRowsShown ??= new RangeNode<int>(25, 5, 200);
         TextColor ??= new ColorNode(System.Drawing.Color.FromArgb(255, 235, 235, 235));
         ClosedColor ??= new ColorNode(System.Drawing.Color.FromArgb(255, 80, 255, 120));
         BorderColor ??= new ColorNode(System.Drawing.Color.FromArgb(220, 180, 120, 255));

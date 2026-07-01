@@ -14,6 +14,7 @@ using ExileCore2.Shared.Helpers;
 using GameOffsets2;
 using GameOffsets2.Native;
 using ImGuiNET;
+using Newtonsoft.Json;
 using RectangleF = ExileCore2.Shared.RectangleF;
 
 namespace ThreatSense;
@@ -22,6 +23,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 {
     private const string PluginVersion = "v0.1";
     private const string UnknownEffectsDumpFileName = "UnknownEffectsDump.txt";
+    private const string AbyssMapHistoryFileName = "abyss_map_history.json";
     private const string AbyssPitActiveIcon = "AbyssPitActive";
     private const string AbyssPitInactiveIcon = "AbyssPitInactive";
 
@@ -37,12 +39,18 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
     private readonly HashSet<long> _amanamuTargetsSeenThisScan = new HashSet<long>();
     private readonly Dictionary<string, TrackedAbyssPit> _trackedAbyssPits = new Dictionary<string, TrackedAbyssPit>(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _loggedAbyssPitMatches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, AbyssMapHistoryEntry> _abyssMapHistory = new Dictionary<string, AbyssMapHistoryEntry>(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<MonsterAffixDefinition> _affixDefinitions = Array.Empty<MonsterAffixDefinition>();
     private IReadOnlyList<EffectRuleDefinition> _effectDefinitions = Array.Empty<EffectRuleDefinition>();
     private string _affixSearch = string.Empty;
     private string _effectSearch = string.Empty;
     private long _lastScanMs;
     private string _currentAbyssPitAreaKey = string.Empty;
+    private string _currentAbyssMapKey = string.Empty;
+    private string _currentAbyssMapName = string.Empty;
+    private string _currentAbyssAreaId = string.Empty;
+    private string _currentAbyssRunKey = string.Empty;
+    private bool _currentAbyssRunRecorded;
     private int _abyssPitTerrainCount = -1;
     private bool _abyssPitTerrainScanAttempted;
     private int _lastMonsterCount;
@@ -56,6 +64,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         Settings.EnsureDefaults(_affixDefinitions, _effectDefinitions);
         RebuildAffixLookup();
         LoadUnknownEffectsDump();
+        LoadAbyssMapHistory();
 
         Settings.ResetToBundledDefaults.OnPressed += () =>
         {
@@ -166,6 +175,11 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
             {
                 ResetAbyssPitTracking();
                 _currentAbyssPitAreaKey = areaKey;
+                SetCurrentAbyssMap(area, areaKey);
+            }
+            else if (string.IsNullOrWhiteSpace(_currentAbyssMapKey))
+            {
+                SetCurrentAbyssMap(area, areaKey);
             }
         }
 
@@ -201,6 +215,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         if (!Settings.AbyssPitCounter.Enable.Value)
             return;
 
+        EnsureCurrentAbyssMapContext();
         MaybeScanAbyssPitTerrainTotal();
 
         foreach (var entity in GetCachedEntities())
@@ -221,6 +236,8 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
                     DebugWindow.LogMsg($"[ThreatSense] Skipped Abyss pit candidate: {ex.Message}", 5);
             }
         }
+
+        UpdateAbyssMapHistory();
     }
 
     private void MaybeScanAbyssPitTerrainTotal()
@@ -852,26 +869,44 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         var label = string.IsNullOrWhiteSpace(Settings.AbyssPitCounter.Label.Value)
             ? "Abyss Pits"
             : Settings.AbyssPitCounter.Label.Value.Trim();
-        var text = $"{label}: {closed}/{Math.Max(found, closed)} closed";
+        var lines = new List<(string Text, Color Color)>
+        {
+            ($"{label}: {closed}/{Math.Max(found, closed)} closed", closed > 0 && closed >= found && found > 0
+                ? Settings.AbyssPitCounter.ClosedColor.Value
+                : Settings.AbyssPitCounter.TextColor.Value)
+        };
+
+        if (Settings.AbyssPitCounter.ShowMapBestInCounter.Value &&
+            TryGetCurrentAbyssMapHistory(out var historyEntry) &&
+            historyEntry.BestSeen > 0)
+        {
+            var mapName = string.IsNullOrWhiteSpace(historyEntry.MapName) ? "this map" : historyEntry.MapName;
+            lines.Add(($"Best {mapName}: {historyEntry.BestSeen} seen", Settings.AbyssPitCounter.TextColor.Value));
+        }
+
         var position = new Vector2(Settings.AbyssPitCounter.PositionX.Value, Settings.AbyssPitCounter.PositionY.Value);
 
         using var textScale = Graphics.SetTextScale(Settings.AbyssPitCounter.TextScale.Value);
-        var textSize = Graphics.MeasureText(text, 15);
+        var lineSizes = lines.Select(x => Graphics.MeasureText(x.Text, 15)).ToList();
+        var textWidth = lineSizes.Count == 0 ? 0f : lineSizes.Max(x => x.X);
+        var textHeight = lineSizes.Sum(x => x.Y) + Math.Max(0, lines.Count - 1) * 2f;
         const float paddingX = 9f;
         const float paddingY = 6f;
         var box = new RectangleF(
             position.X,
             position.Y,
-            Math.Max(120f, textSize.X + paddingX * 2f),
-            Math.Max(28f, textSize.Y + paddingY * 2f));
+            Math.Max(120f, textWidth + paddingX * 2f),
+            Math.Max(28f, textHeight + paddingY * 2f));
 
         Graphics.DrawBox(box, Settings.AbyssPitCounter.BackgroundColor.Value);
         Graphics.DrawFrame(box, Settings.AbyssPitCounter.BorderColor.Value, 1);
 
-        var textColor = closed > 0 && closed >= found && found > 0
-            ? Settings.AbyssPitCounter.ClosedColor.Value
-            : Settings.AbyssPitCounter.TextColor.Value;
-        Graphics.DrawText(text, new Vector2(box.X + paddingX, box.Y + paddingY), textColor);
+        var y = box.Y + paddingY;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            Graphics.DrawText(lines[i].Text, new Vector2(box.X + paddingX, y), lines[i].Color);
+            y += lineSizes[i].Y + 2f;
+        }
     }
 
     private int GetAbyssPitFoundCount()
@@ -891,6 +926,124 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         _loggedAbyssPitMatches.Clear();
         _abyssPitTerrainCount = -1;
         _abyssPitTerrainScanAttempted = false;
+    }
+
+    private void EnsureCurrentAbyssMapContext()
+    {
+        if (!string.IsNullOrWhiteSpace(_currentAbyssMapKey))
+            return;
+
+        try
+        {
+            var area = GameController?.Area?.CurrentArea;
+            if (area == null || IsPeacefulArea(area))
+                return;
+
+            var areaKey = GetAbyssPitAreaKey(area);
+            _currentAbyssPitAreaKey = areaKey;
+            SetCurrentAbyssMap(area, areaKey);
+        }
+        catch
+        {
+            // Best effort only; the counter still works without a history context.
+        }
+    }
+
+    private void SetCurrentAbyssMap(AreaInstance area, string areaKey)
+    {
+        _currentAbyssAreaId = SafeAreaValue(() => area.Area.Id);
+        _currentAbyssMapName = GetAbyssMapDisplayName(area);
+        _currentAbyssMapKey = !string.IsNullOrWhiteSpace(_currentAbyssAreaId)
+            ? _currentAbyssAreaId
+            : _currentAbyssMapName;
+        _currentAbyssRunKey = areaKey;
+        _currentAbyssRunRecorded = false;
+    }
+
+    private static string GetAbyssMapDisplayName(AreaInstance area)
+    {
+        var areaName = SafeAreaValue(() => area.Area.Name);
+        if (!string.IsNullOrWhiteSpace(areaName))
+            return areaName;
+
+        var instanceName = SafeAreaValue(() => area.Name);
+        return string.IsNullOrWhiteSpace(instanceName) ? "Unknown Area" : instanceName;
+    }
+
+    private void UpdateAbyssMapHistory()
+    {
+        if (!Settings.AbyssPitCounter.RecordMapHistory.Value)
+            return;
+
+        var found = GetAbyssPitFoundCount();
+        if (found <= 0)
+            return;
+
+        EnsureCurrentAbyssMapContext();
+        if (string.IsNullOrWhiteSpace(_currentAbyssMapKey))
+            return;
+
+        var closed = GetAbyssPitClosedCount();
+        var now = DateTimeOffset.UtcNow;
+        if (!_abyssMapHistory.TryGetValue(_currentAbyssMapKey, out var entry))
+        {
+            entry = new AbyssMapHistoryEntry
+            {
+                MapKey = _currentAbyssMapKey,
+                MapName = _currentAbyssMapName,
+                AreaId = _currentAbyssAreaId
+            };
+            _abyssMapHistory[_currentAbyssMapKey] = entry;
+        }
+
+        var changed = false;
+        entry.MapName = string.IsNullOrWhiteSpace(_currentAbyssMapName) ? entry.MapName : _currentAbyssMapName;
+        entry.AreaId = string.IsNullOrWhiteSpace(_currentAbyssAreaId) ? entry.AreaId : _currentAbyssAreaId;
+
+        if (!_currentAbyssRunRecorded || !string.Equals(entry.LastRunKey, _currentAbyssRunKey, StringComparison.Ordinal))
+        {
+            entry.Runs++;
+            entry.LastRunKey = _currentAbyssRunKey;
+            _currentAbyssRunRecorded = true;
+            changed = true;
+        }
+
+        if (entry.LastRunSeen != found)
+        {
+            entry.LastRunSeen = found;
+            changed = true;
+        }
+
+        if (entry.LastRunClosed != closed)
+        {
+            entry.LastRunClosed = closed;
+            changed = true;
+        }
+
+        if (found > entry.BestSeen)
+        {
+            entry.BestSeen = found;
+            entry.BestSeenUtc = now.ToString("O");
+            changed = true;
+        }
+
+        if (closed > entry.BestClosed)
+        {
+            entry.BestClosed = closed;
+            changed = true;
+        }
+
+        entry.LastSeenUtc = now.ToString("O");
+
+        if (changed)
+            SaveAbyssMapHistory(false);
+    }
+
+    private bool TryGetCurrentAbyssMapHistory(out AbyssMapHistoryEntry entry)
+    {
+        entry = null!;
+        return !string.IsNullOrWhiteSpace(_currentAbyssMapKey) &&
+               _abyssMapHistory.TryGetValue(_currentAbyssMapKey, out entry!);
     }
 
     private bool IsPeacefulArea(AreaInstance area)
@@ -1349,12 +1502,15 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 
         DrawToggle("Enable Abyss pit counter", Settings.AbyssPitCounter.Enable, "Tracks AbyssPitActive/AbyssPitInactive minimap-icon entities exposed by ExileCore. This does not require the MinimapIcons plugin to be enabled.");
         DrawToggle("Only show after pit detected", Settings.AbyssPitCounter.HideWhenNoPitsFound, "When enabled, the counter is hidden until at least one Abyss pit has been seen in the current map. Disable this if you always want the counter visible.");
+        DrawToggle("Record map history", Settings.AbyssPitCounter.RecordMapHistory, "Save the best observed Abyss pit count per map to a local personal data file. This only records pits ExileCore actually exposes while you are in the map.");
+        DrawToggle("Show map best in counter", Settings.AbyssPitCounter.ShowMapBestInCounter, "Adds a second counter line showing the best observed pit count for the current map.");
         DrawToggle("Use terrain feature total", Settings.AbyssPitCounter.UseTerrainFeatureTotal, "Experimental. Counts matching TGT terrain features for the current map total. This can overcount Abyss art/layout pieces, so leave it off for normal pit tracking.");
         DrawToggle("Use path fallback", Settings.AbyssPitCounter.UsePathFallback, "Experimental. Also counts entities whose path contains the configured substrings. Leave off for normal tracking; the reliable source is MinimapIcon.Name AbyssPitActive/AbyssPitInactive.");
         DrawTextEditor("Counter label", Settings.AbyssPitCounter.Label);
         DrawIntSlider("Counter X", Settings.AbyssPitCounter.PositionX);
         DrawIntSlider("Counter Y", Settings.AbyssPitCounter.PositionY);
         DrawFloatSlider("Counter text scale", Settings.AbyssPitCounter.TextScale, 1f);
+        DrawIntSlider("History rows shown", Settings.AbyssPitCounter.HistoryRowsShown, "Maximum rows shown in the Abyss Map History table.");
         DrawColorEditor("Counter text color", Settings.AbyssPitCounter.TextColor);
         DrawColorEditor("Counter complete color", Settings.AbyssPitCounter.ClosedColor);
         DrawColorEditor("Counter border color", Settings.AbyssPitCounter.BorderColor);
@@ -1362,12 +1518,97 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 
         ImGui.TextDisabled($"Current area: {GetAbyssPitClosedCount()}/{GetAbyssPitFoundCount()} closed, {_trackedAbyssPits.Count} runtime pit entities tracked");
 
+        DrawAbyssMapHistorySettings();
+
         if (ImGui.TreeNode("Path matching"))
         {
             HelpMarker("Only used when the experimental terrain total or path fallback options are enabled. The normal counter uses explicit AbyssPitActive/AbyssPitInactive minimap icon names instead.");
             DrawAbyssPitPathEditor();
             ImGui.TreePop();
         }
+    }
+
+    private void DrawAbyssMapHistorySettings()
+    {
+        if (!ImGui.CollapsingHeader($"Abyss Map History ({_abyssMapHistory.Count})", ImGuiTreeNodeFlags.None))
+            return;
+
+        ImGui.TextDisabled("Best observed pit counts by map. This is observed runtime data, not guaranteed total possible spawns.");
+        ImGui.TextDisabled($"History file: {GetAbyssMapHistoryPath()}");
+
+        if (TryGetCurrentAbyssMapHistory(out var currentEntry))
+        {
+            ImGui.TextDisabled($"Current map best: {currentEntry.MapName} - {currentEntry.BestSeen} seen, {currentEntry.BestClosed} closed");
+        }
+        else if (!string.IsNullOrWhiteSpace(_currentAbyssMapName))
+        {
+            ImGui.TextDisabled($"Current map: {_currentAbyssMapName} - no Abyss pits recorded yet");
+        }
+
+        if (ImGui.Button("Save history now"))
+            SaveAbyssMapHistory();
+
+        ImGui.SameLine();
+        if (ImGui.Button("Copy history path"))
+            ImGui.SetClipboardText(GetAbyssMapHistoryPath());
+
+        ImGui.SameLine();
+        if (ImGui.Button("Open history folder"))
+            OpenAbyssMapHistoryFolder();
+
+        ImGui.SameLine();
+        if (ImGui.Button("Reset history"))
+        {
+            _abyssMapHistory.Clear();
+            _currentAbyssRunRecorded = false;
+            SaveAbyssMapHistory();
+            UpdateAbyssMapHistory();
+        }
+
+        if (_abyssMapHistory.Count == 0)
+        {
+            ImGui.TextDisabled("No Abyss map history recorded yet.");
+            return;
+        }
+
+        var rows = _abyssMapHistory.Values
+            .OrderByDescending(x => x.BestSeen)
+            .ThenByDescending(x => x.LastRunSeen)
+            .ThenBy(x => x.MapName, StringComparer.OrdinalIgnoreCase)
+            .Take(Settings.AbyssPitCounter.HistoryRowsShown.Value)
+            .ToList();
+
+        var flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY;
+        var tableHeight = Math.Min(360f, 28f + rows.Count * 24f);
+        if (!ImGui.BeginTable("##abyss_map_history", 6, flags, new Vector2(0, tableHeight)))
+            return;
+
+        ImGui.TableSetupColumn("Map", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn("Best", ImGuiTableColumnFlags.WidthFixed, 55f);
+        ImGui.TableSetupColumn("Closed", ImGuiTableColumnFlags.WidthFixed, 58f);
+        ImGui.TableSetupColumn("Last", ImGuiTableColumnFlags.WidthFixed, 55f);
+        ImGui.TableSetupColumn("Runs", ImGuiTableColumnFlags.WidthFixed, 52f);
+        ImGui.TableSetupColumn("Last seen", ImGuiTableColumnFlags.WidthFixed, 125f);
+        ImGui.TableHeadersRow();
+
+        foreach (var row in rows)
+        {
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted(string.IsNullOrWhiteSpace(row.MapName) ? row.MapKey : row.MapName);
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted(row.BestSeen.ToString());
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted(row.BestClosed.ToString());
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted(row.LastRunSeen.ToString());
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted(row.Runs.ToString());
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted(FormatHistoryTime(row.LastSeenUtc));
+        }
+
+        ImGui.EndTable();
     }
 
     private void DrawAbyssPitPathEditor()
@@ -1579,6 +1820,92 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         DrawUnknownEffectsActions();
     }
 
+    private void LoadAbyssMapHistory()
+    {
+        var path = GetAbyssMapHistoryPath();
+        if (!File.Exists(path))
+            return;
+
+        try
+        {
+            var file = JsonConvert.DeserializeObject<AbyssMapHistoryFile>(File.ReadAllText(path));
+            _abyssMapHistory.Clear();
+
+            foreach (var entry in file?.Entries ?? new List<AbyssMapHistoryEntry>())
+            {
+                if (string.IsNullOrWhiteSpace(entry.MapKey))
+                    continue;
+
+                if (string.IsNullOrWhiteSpace(entry.MapName))
+                    entry.MapName = entry.MapKey;
+
+                _abyssMapHistory[entry.MapKey] = entry;
+            }
+
+            if (_abyssMapHistory.Count > 0)
+                DebugWindow.LogMsg($"[ThreatSense] Loaded {_abyssMapHistory.Count} Abyss map history rows from {path}", 5);
+        }
+        catch (Exception ex)
+        {
+            DebugWindow.LogError($"[ThreatSense] Failed to load Abyss map history: {ex.Message}");
+        }
+    }
+
+    private void SaveAbyssMapHistory(bool showLog = true)
+    {
+        var path = GetAbyssMapHistoryPath();
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var file = new AbyssMapHistoryFile
+            {
+                Entries = _abyssMapHistory.Values
+                    .OrderBy(x => x.MapName, StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+            };
+
+            File.WriteAllText(path, JsonConvert.SerializeObject(file, Formatting.Indented));
+
+            if (showLog)
+                DebugWindow.LogMsg($"[ThreatSense] Wrote {_abyssMapHistory.Count} Abyss map history rows to {path}", 5);
+        }
+        catch (Exception ex)
+        {
+            DebugWindow.LogError($"[ThreatSense] Failed to write Abyss map history: {ex.Message}");
+        }
+    }
+
+    private string GetAbyssMapHistoryPath()
+    {
+        var directory = string.IsNullOrWhiteSpace(ConfigDirectory) ? DirectoryFullName : ConfigDirectory;
+        return Path.Combine(directory, AbyssMapHistoryFileName);
+    }
+
+    private void OpenAbyssMapHistoryFolder()
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(GetAbyssMapHistoryPath());
+            if (string.IsNullOrWhiteSpace(directory))
+                return;
+
+            Directory.CreateDirectory(directory);
+            Process.Start("explorer.exe", directory);
+        }
+        catch (Exception ex)
+        {
+            DebugWindow.LogError($"[ThreatSense] Failed to open Abyss map history folder: {ex.Message}");
+        }
+    }
+
+    private static string FormatHistoryTime(string value)
+    {
+        if (!DateTimeOffset.TryParse(value, out var timestamp))
+            return string.Empty;
+
+        return timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+    }
+
     private void RecordUnknownEffect(string path)
     {
         if (!_unknownEffects.Add(path))
@@ -1753,6 +2080,27 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
     private sealed record AmanamuCloud(Vector3 Position, float Radius);
 
     private sealed record TrackedAmanamuTarget(WarningTarget Target, long LastSeenMs);
+
+    private sealed class AbyssMapHistoryFile
+    {
+        public int Version { get; set; } = 1;
+        public List<AbyssMapHistoryEntry> Entries { get; set; } = new List<AbyssMapHistoryEntry>();
+    }
+
+    private sealed class AbyssMapHistoryEntry
+    {
+        public string MapKey { get; set; } = string.Empty;
+        public string MapName { get; set; } = string.Empty;
+        public string AreaId { get; set; } = string.Empty;
+        public string LastRunKey { get; set; } = string.Empty;
+        public int BestSeen { get; set; }
+        public int BestClosed { get; set; }
+        public int LastRunSeen { get; set; }
+        public int LastRunClosed { get; set; }
+        public int Runs { get; set; }
+        public string BestSeenUtc { get; set; } = string.Empty;
+        public string LastSeenUtc { get; set; } = string.Empty;
+    }
 
     private sealed class TrackedAbyssPit
     {
