@@ -11,7 +11,7 @@ namespace ThreatSense;
 
 public class ThreatSenseSettings : ISettings
 {
-    private const int CurrentDefaultsVersion = 11;
+    private const int CurrentDefaultsVersion = 12;
 
     private static readonly HashSet<string> Version10RecommendedAffixIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -52,6 +52,7 @@ public class ThreatSenseSettings : ISettings
     public ToggleNode HideUnderLargePanels { get; set; } = new ToggleNode(true);
     public ToggleNode HideUnderFullscreenPanels { get; set; } = new ToggleNode(true);
     public RangeNode<int> ScanIntervalMs { get; set; } = new RangeNode<int>(120, 33, 1000);
+    public RangeNode<int> FullEntityScanIntervalMs { get; set; } = new RangeNode<int>(250, 120, 2000);
     public RangeNode<int> MaxDrawDistance { get; set; } = new RangeNode<int>(140, 20, 300);
     public RangeNode<int> CircleThickness { get; set; } = new RangeNode<int>(4, 1, 12);
     public RangeNode<float> MonsterCircleScale { get; set; } = new RangeNode<float>(1.4f, 0.2f, 8f);
@@ -101,6 +102,7 @@ public class ThreatSenseSettings : ISettings
         HideUnderLargePanels ??= new ToggleNode(true);
         HideUnderFullscreenPanels ??= new ToggleNode(true);
         ScanIntervalMs ??= new RangeNode<int>(120, 33, 1000);
+        FullEntityScanIntervalMs ??= new RangeNode<int>(250, 120, 2000);
         MaxDrawDistance ??= new RangeNode<int>(140, 20, 300);
         CircleThickness ??= new RangeNode<int>(4, 1, 12);
         MonsterCircleScale ??= new RangeNode<float>(1.4f, 0.2f, 8f);
@@ -115,6 +117,9 @@ public class ThreatSenseSettings : ISettings
             AbyssPitCounter.UseTerrainFeatureTotal.Value = false;
             AbyssPitCounter.UsePathFallback.Value = false;
         }
+
+        if (DefaultsVersion < 12)
+            RitualWisp.ApplyVersion12Defaults();
 
         var recommendedAffixIdsToApply = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (DefaultsVersion < 10)
@@ -275,23 +280,43 @@ public class RitualWispSettings
 {
     public ToggleNode EnableSpecialOverlay { get; set; } = new ToggleNode(true);
     public ToggleNode DrawPlayerGuideLine { get; set; } = new ToggleNode(true);
-    public RangeNode<int> MaxDrawDistance { get; set; } = new RangeNode<int>(180, 20, 500);
+    public RangeNode<int> MaxDrawDistance { get; set; } = new RangeNode<int>(100, 20, 500);
     public RangeNode<float> CircleSizeMultiplier { get; set; } = new RangeNode<float>(5.0f, 0.5f, 12f);
-    public RangeNode<int> CircleThickness { get; set; } = new RangeNode<int>(6, 1, 20);
+    public RangeNode<int> CircleThickness { get; set; } = new RangeNode<int>(8, 1, 20);
     public RangeNode<int> GuideLineThickness { get; set; } = new RangeNode<int>(3, 1, 12);
-    public TextNode Label { get; set; } = new TextNode("RITUAL");
-    public ColorNode Color { get; set; } = new ColorNode(System.Drawing.Color.FromArgb(255, 64, 224, 255));
+    public TextNode Label { get; set; } = new TextNode("TRIBUTE");
+    public ColorNode Color { get; set; } = new ColorNode(System.Drawing.Color.White);
 
     public void EnsureDefaults()
     {
         EnableSpecialOverlay ??= new ToggleNode(true);
         DrawPlayerGuideLine ??= new ToggleNode(true);
-        MaxDrawDistance ??= new RangeNode<int>(180, 20, 500);
+        MaxDrawDistance ??= new RangeNode<int>(100, 20, 500);
         CircleSizeMultiplier ??= new RangeNode<float>(5.0f, 0.5f, 12f);
-        CircleThickness ??= new RangeNode<int>(6, 1, 20);
+        CircleThickness ??= new RangeNode<int>(8, 1, 20);
         GuideLineThickness ??= new RangeNode<int>(3, 1, 12);
-        Label ??= new TextNode("RITUAL");
-        Color ??= new ColorNode(System.Drawing.Color.FromArgb(255, 64, 224, 255));
+        Label ??= new TextNode("TRIBUTE");
+        Color ??= new ColorNode(System.Drawing.Color.White);
+    }
+
+    public void ApplyVersion12Defaults()
+    {
+        EnsureDefaults();
+
+        if (MaxDrawDistance.Value == 180)
+            MaxDrawDistance.Value = 100;
+
+        if (CircleThickness.Value == 6)
+            CircleThickness.Value = 8;
+
+        if (string.IsNullOrWhiteSpace(Label.Value) ||
+            Label.Value.Equals("RITUAL", StringComparison.OrdinalIgnoreCase))
+        {
+            Label.Value = "TRIBUTE";
+        }
+
+        if (Color.Value.ToArgb() == System.Drawing.Color.FromArgb(255, 64, 224, 255).ToArgb())
+            Color.Value = System.Drawing.Color.White;
     }
 }
 

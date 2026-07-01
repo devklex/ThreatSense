@@ -257,9 +257,9 @@
       "pathContains": [
         "Daemon/RitualWisp"
       ],
-      "label": "RITUAL",
+      "label": "TRIBUTE",
       "defaultEnabled": true,
-      "color": "#40E0FF",
+      "color": "#FFFFFF",
       "sizeMultiplier": 5.0,
       "matchAnyEntityType": true
     },
