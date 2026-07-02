@@ -164,10 +164,14 @@
         "Lightning_strike",
         "VaalStormCall",
         "StormCall",
+        "VaalZealotSpearLightning/ao/storm_call",
         "daemonStrongbox/storm",
         "periodic_lightning_storm",
         "SulphiteLightningStorm",
-        "storm_death_storm"
+        "storm_death_storm",
+        "TwilightOrderOverlord/ao/rock_storm",
+        "TwilightOrderOverlord/ao/rock_storm_impact",
+        "TwilightOrderOverlord/ao/rock_storm_lightning_rod"
       ],
       "label": "STORM",
       "defaultEnabled": true,
@@ -238,6 +242,7 @@
       "category": "Area hazard",
       "pathContains": [
         "LightlessWells/LightlessWell",
+        "MonsterMods/LeagueAbyss/LightlessWells",
         "AbyssLightlessWell",
         "abyss_lightless_well",
         "wells_of_darkness/ground_darkness",
@@ -288,7 +293,10 @@
         "DetonateDeadTelegraphStronger",
         "DetonateDeadTelegraphStrongerMonster",
         "DetonateDeadMonsterPoisonTelegraph",
-        "DetonateDeadMonsterIceTelegraph"
+        "DetonateDeadMonsterIceTelegraph",
+        "FrozenOneBoss/FrozenOne_GroundSpikePulse",
+        "FrozenOneBoss/FX/Ground_Impact",
+        "FrozenOneBoss/FX/IcicleCrash"
       ],
       "label": "DODGE",
       "defaultEnabled": true,
@@ -394,7 +402,8 @@
         "League_Abyss/Cocoons2/pustule_explode",
         "League_Abyss/Kulemak/explode",
         "SwarmHost/ao/pustule_explode",
-        "PustuleGroundSpawner"
+        "PustuleGroundSpawner",
+        "MonsterMods/LeagueAbyss/PustuleGround/Player/Pustule4"
       ],
       "label": "ABYSS",
       "defaultEnabled": true,
@@ -403,12 +412,15 @@
     },
     {
       "id": "abyss_lightless_rune",
-      "name": "Abyss Lightless Rune",
+      "name": "Abyss Exploding Runes",
       "category": "Explosion",
       "pathContains": [
+        "League_Abyss/ExplodingRunes",
         "League_Abyss/ExplodingRunes/Lightless_rune",
         "MonsterMods/LeagueAbyss/LightlessRune",
-        "MonsterMods/LeagueAbyss/Player/LightlessRune"
+        "MonsterMods/LeagueAbyss/Player/LightlessRune",
+        "MonsterMods/LeagueAbyss/Player/AbyssalRunesSpawner",
+        "MonsterMods/LeagueAbyss/Player/PitRune"
       ],
       "label": "RUNE",
       "defaultEnabled": true,
@@ -429,12 +441,29 @@
       "sizeMultiplier": 1.0
     },
     {
+      "id": "expedition_rune_hazards",
+      "name": "Expedition Rune Hazards",
+      "category": "Area hazard",
+      "pathContains": [
+        "Expedition2/TidalRune/waveProj",
+        "League_Expedition_New/general_effects/Earth_Runes",
+        "League_Expedition_New/general_effects/Moon_Runes/moonbeam",
+        "League_Expedition_New/general_effects/Stone_Runes/AOs/RockWall_segment"
+      ],
+      "label": "RUNE",
+      "defaultEnabled": true,
+      "color": "#40D0FF",
+      "sizeMultiplier": 1.0
+    },
+    {
       "id": "affliction_spikes",
       "name": "Affliction / Delirium Spikes",
       "category": "Explosion",
       "pathContains": [
         "League_Affliction/affliction_demon_phys/ground_spikes",
+        "League_Affliction/affliction_manifests/bulky/ground_slam",
         "League_Affliction/affliction_manifests/sanic/explode_spikes",
+        "League_Affliction/affliction_mods/soul_geyser_explode",
         "League_Delirium/Demons/PhysSpikes/ground_rune"
       ],
       "label": "SPIKES",
@@ -486,6 +515,49 @@
       "label": "MORTAR",
       "defaultEnabled": true,
       "color": "#FF8C00",
+      "sizeMultiplier": 1.0
+    },
+    {
+      "id": "slam_impact_markers",
+      "name": "Slam / Impact Markers",
+      "category": "Area hazard",
+      "pathContains": [
+        "MastadonBoss/ao/mastodon_ground_stomp",
+        "GreatSnakeSkeletonBoss/groundDust",
+        "DeepDweller/ao/floppy_ground",
+        "essence2/LightningEssence1/ground_slam",
+        "League_Expedition_New/VaalForgeman/AO/VerisiumGroundSlam"
+      ],
+      "label": "SLAM",
+      "defaultEnabled": true,
+      "color": "#FFB000",
+      "sizeMultiplier": 1.0
+    },
+    {
+      "id": "ritual_charge_beams",
+      "name": "Ritual Charge Beams",
+      "category": "Area hazard",
+      "pathContains": [
+        "League_Ritual/charges_ritual/cold_beam",
+        "League_Ritual/charges_ritual/fire_beam",
+        "League_Ritual/charges_ritual/lightning_beam"
+      ],
+      "label": "BEAM",
+      "defaultEnabled": true,
+      "color": "#FF66CC",
+      "sizeMultiplier": 1.0
+    },
+    {
+      "id": "rune_object_hazards",
+      "name": "Rune Object Hazards",
+      "category": "Area hazard",
+      "pathContains": [
+        "Strongbox/Daemon/runes_chaos",
+        "Terrain/Doodads/Jungle/VaalProps/LaserOrb"
+      ],
+      "label": "RUNE",
+      "defaultEnabled": true,
+      "color": "#D070FF",
       "sizeMultiplier": 1.0
     },
     {
