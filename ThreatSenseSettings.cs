@@ -356,6 +356,7 @@ public class AbyssPitCounterSettings
     public ToggleNode HideWhenNoPitsFound { get; set; } = new ToggleNode(true);
     public ToggleNode RecordMapHistory { get; set; } = new ToggleNode(true);
     public ToggleNode ShowMapBestInCounter { get; set; } = new ToggleNode(true);
+    public ToggleNode DrawTrackedPitMarkers { get; set; } = new ToggleNode(false);
     public TextNode Label { get; set; } = new TextNode("Abyss Pits");
     public RangeNode<int> PositionX { get; set; } = new RangeNode<int>(20, 0, 3840);
     public RangeNode<int> PositionY { get; set; } = new RangeNode<int>(220, 0, 2160);
@@ -375,6 +376,7 @@ public class AbyssPitCounterSettings
         HideWhenNoPitsFound ??= new ToggleNode(true);
         RecordMapHistory ??= new ToggleNode(true);
         ShowMapBestInCounter ??= new ToggleNode(true);
+        DrawTrackedPitMarkers ??= new ToggleNode(false);
         Label ??= new TextNode("Abyss Pits");
         PositionX ??= new RangeNode<int>(20, 0, 3840);
         PositionY ??= new RangeNode<int>(220, 0, 2160);

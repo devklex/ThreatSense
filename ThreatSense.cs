@@ -27,6 +27,8 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
     private const string AbyssMarkerDumpFileName = "AbyssMarkerDump.txt";
     private const string AbyssPitActiveIcon = "AbyssPitActive";
     private const string AbyssPitInactiveIcon = "AbyssPitInactive";
+    private const float AbyssPitMergeGridDistance = 10f;
+    private const float AbyssMiniDungeonEntranceGridDistance = 45f;
     private static readonly EntityType[] EffectCandidateEntityTypes =
     {
         EntityType.Effect,
@@ -139,6 +141,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
             return;
 
         DrawAbyssPitCounterOverlay();
+        DrawTrackedAbyssPitMarkers();
 
         if (_targets.Count == 0)
             return;
@@ -202,6 +205,9 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         {
             var areaKey = GetAbyssPitAreaKey(area);
             var isMapSideArea = IsMapSideArea(area);
+            if (isMapSideArea)
+                MarkSingleOpenAbyssPitClosedFromMiniDungeonAreaEntry(area);
+
             if ((isMapSideArea || _insideMapSideArea) && !string.IsNullOrWhiteSpace(_currentAbyssPitAreaKey))
             {
                 if (Settings.Debug.LogMatchedAbyssPits.Value)
@@ -316,6 +322,19 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         }
     }
 
+    private bool IsCurrentAreaMapSideArea()
+    {
+        try
+        {
+            var area = GameController?.Area?.CurrentArea;
+            return area != null && IsMapSideArea(area);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private void AddCachedAnyEntityPathTargets()
     {
         for (var i = _cachedAnyEntityPathTargets.Count - 1; i >= 0; i--)
@@ -367,6 +386,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
             }
         }
 
+        MarkAbyssMiniDungeonEntrancePitsClosed();
         UpdateAbyssMapHistory();
     }
 
@@ -466,7 +486,8 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
 
     private void TrackAbyssPit(Entity entity, string path, string minimapIconName)
     {
-        var key = GetAbyssPitKey(entity, path, minimapIconName);
+        var gridPosition = ReadAbyssPitGridPosition(entity);
+        var key = ResolveAbyssPitKey(GetAbyssPitKey(entity, path, minimapIconName, gridPosition), gridPosition, minimapIconName);
         if (!_trackedAbyssPits.TryGetValue(key, out var tracked))
         {
             tracked = new TrackedAbyssPit
@@ -475,6 +496,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
                 Path = path,
                 MinimapIconName = minimapIconName,
                 Position = entity.Pos,
+                GridPosition = gridPosition,
                 FirstSeenMs = Environment.TickCount64
             };
             _trackedAbyssPits[key] = tracked;
@@ -487,6 +509,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         tracked.Path = path;
         tracked.MinimapIconName = minimapIconName;
         tracked.Position = entity.Pos;
+        tracked.GridPosition = gridPosition ?? tracked.GridPosition;
 
         var state = ReadAbyssPitState(entity);
         tracked.WasTargetable |= state.IsTargetable == true;
@@ -494,11 +517,137 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         tracked.WasTransitionActive |= state.TransitionFlag1 == 1;
 
         var wasClosed = tracked.Closed;
-        tracked.Closed |= IsAbyssPitClosed(tracked, state, path);
+        if (IsAbyssPitClosed(tracked, state, path))
+        {
+            tracked.Closed = true;
+            if (string.IsNullOrWhiteSpace(tracked.CloseReason))
+                tracked.CloseReason = "pit entity state";
+        }
         tracked.LastState = state;
 
         if (!wasClosed && tracked.Closed && Settings.Debug.LogMatchedAbyssPits.Value && _loggedAbyssPitMatches.Add(key + "|closed"))
             DebugWindow.LogMsg($"[ThreatSense] Abyss pit closed: {DescribeAbyssPit(entity, path, minimapIconName)}", 5);
+    }
+
+    private string ResolveAbyssPitKey(string key, Vector2? gridPosition, string minimapIconName)
+    {
+        if (_trackedAbyssPits.ContainsKey(key) || !IsAbyssPitMinimapIcon(minimapIconName) || gridPosition == null)
+            return key;
+
+        const float maxDistanceSquared = AbyssPitMergeGridDistance * AbyssPitMergeGridDistance;
+        var incomingInactive = IsAbyssPitInactiveIcon(minimapIconName);
+        var bestDistanceSquared = float.MaxValue;
+        TrackedAbyssPit? bestMatch = null;
+        foreach (var tracked in _trackedAbyssPits.Values)
+        {
+            if (tracked.GridPosition == null)
+                continue;
+
+            if (!incomingInactive && tracked.Closed)
+                continue;
+
+            var distanceSquared = Vector2.DistanceSquared(tracked.GridPosition.Value, gridPosition.Value);
+            if (distanceSquared > maxDistanceSquared || distanceSquared >= bestDistanceSquared)
+                continue;
+
+            bestDistanceSquared = distanceSquared;
+            bestMatch = tracked;
+        }
+
+        return bestMatch?.Key ?? key;
+    }
+
+    private void MarkAbyssMiniDungeonEntrancePitsClosed()
+    {
+        if (_trackedAbyssPits.Count == 0 || _trackedAbyssPits.Values.All(x => x.Closed))
+            return;
+
+        try
+        {
+            var area = GameController?.Area?.CurrentArea;
+            if (area == null || IsPeacefulArea(area) || IsMapSideArea(area))
+                return;
+        }
+        catch
+        {
+            return;
+        }
+
+        var seen = new HashSet<long>();
+        foreach (var entity in GetCachedEntities())
+        {
+            try
+            {
+                if (!TryAddCandidate(seen, entity) ||
+                    !TryGetAbyssMiniDungeonEntranceMatch(entity, out var entranceName, out var entrancePath, out _))
+                {
+                    continue;
+                }
+
+                var gridPosition = ReadAbyssPitGridPosition(entity);
+                if (gridPosition == null)
+                    continue;
+
+                MarkNearestOpenAbyssPitClosed(
+                    gridPosition.Value,
+                    $"mini-dungeon entrance: {entranceName}",
+                    GetAbyssMiniDungeonEntranceLogKey(entity, entranceName, entrancePath));
+            }
+            catch (Exception ex)
+            {
+                if (Settings.Debug.LogMatchedAbyssPits.Value)
+                    DebugWindow.LogMsg($"[ThreatSense] Skipped Abyss mini-dungeon entrance candidate: {ex.Message}", 5);
+            }
+        }
+    }
+
+    private void MarkNearestOpenAbyssPitClosed(Vector2 sourceGridPosition, string closeReason, string logKey)
+    {
+        const float maxDistanceSquared = AbyssMiniDungeonEntranceGridDistance * AbyssMiniDungeonEntranceGridDistance;
+        var bestDistanceSquared = float.MaxValue;
+        TrackedAbyssPit? bestMatch = null;
+
+        foreach (var tracked in _trackedAbyssPits.Values)
+        {
+            if (tracked.Closed || tracked.GridPosition == null)
+                continue;
+
+            var distanceSquared = Vector2.DistanceSquared(tracked.GridPosition.Value, sourceGridPosition);
+            if (distanceSquared > maxDistanceSquared || distanceSquared >= bestDistanceSquared)
+                continue;
+
+            bestDistanceSquared = distanceSquared;
+            bestMatch = tracked;
+        }
+
+        if (bestMatch == null)
+            return;
+
+        bestMatch.Closed = true;
+        bestMatch.CloseReason = closeReason;
+
+        if (Settings.Debug.LogMatchedAbyssPits.Value && _loggedAbyssPitMatches.Add(bestMatch.Key + "|" + logKey))
+        {
+            var distance = Math.Sqrt(bestDistanceSquared);
+            DebugWindow.LogMsg($"[ThreatSense] Abyss pit closed by mini-dungeon entrance near grid {FormatGridPosition(sourceGridPosition)} ({distance:0.#} grid units): {bestMatch.Key}", 5);
+        }
+    }
+
+    private void MarkSingleOpenAbyssPitClosedFromMiniDungeonAreaEntry(AreaInstance area)
+    {
+        if (!IsAbyssMiniDungeonArea(area))
+            return;
+
+        var openPits = _trackedAbyssPits.Values.Where(x => !x.Closed).Take(2).ToList();
+        if (openPits.Count != 1)
+            return;
+
+        var pit = openPits[0];
+        pit.Closed = true;
+        pit.CloseReason = "entered mini-dungeon area";
+
+        if (Settings.Debug.LogMatchedAbyssPits.Value && _loggedAbyssPitMatches.Add(pit.Key + "|mini-dungeon-area-entry"))
+            DebugWindow.LogMsg($"[ThreatSense] Abyss pit closed by entering mini-dungeon area: {DescribeArea(area)} -> {pit.Key}", 5);
     }
 
     private AbyssPitState ReadAbyssPitState(Entity entity)
@@ -588,11 +737,53 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         return IsAbyssPitPath(path);
     }
 
+    private bool TryGetAbyssMiniDungeonEntranceMatch(Entity entity, out string entranceName, out string path, out string minimapIconName)
+    {
+        entranceName = GetEntityRenderName(entity);
+        path = GetEffectPath(entity);
+        minimapIconName = GetMinimapIconName(entity);
+
+        if (!IsTransitionLikeEntity(entity))
+            return false;
+
+        return ContainsAbyssMiniDungeonName(entranceName) ||
+               ContainsAbyssMiniDungeonName(path) ||
+               ContainsAbyssMiniDungeonName(minimapIconName);
+    }
+
+    private static bool IsTransitionLikeEntity(Entity entity)
+    {
+        try
+        {
+            if (entity.Type == EntityType.AreaTransition)
+                return true;
+        }
+        catch
+        {
+            // Continue with component checks below.
+        }
+
+        return entity.TryGetComponent<Transitionable>(out _) ||
+               entity.TryGetComponent<Portal>(out _);
+    }
+
     private static string GetMinimapIconName(Entity entity)
     {
         try
         {
             return entity.TryGetComponent<MinimapIcon>(out var minimapIcon) ? minimapIcon.Name ?? string.Empty : string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string GetEntityRenderName(Entity entity)
+    {
+        try
+        {
+            return entity.RenderName ?? string.Empty;
         }
         catch
         {
@@ -630,20 +821,10 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
                path.Contains("completed", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string GetAbyssPitKey(Entity entity, string path, string minimapIconName)
+    private static string GetAbyssPitKey(Entity entity, string path, string minimapIconName, Vector2? gridPosition)
     {
-        if (IsAbyssPitMinimapIcon(minimapIconName))
-        {
-            try
-            {
-                var grid = entity.GridPos;
-                return $"pit:{(int)Math.Round(grid.X)}:{(int)Math.Round(grid.Y)}";
-            }
-            catch
-            {
-                // Fall back below if the grid position is unavailable.
-            }
-        }
+        if (IsAbyssPitMinimapIcon(minimapIconName) && gridPosition is { } pitGrid)
+            return $"pit:{(int)Math.Round(pitGrid.X)}:{(int)Math.Round(pitGrid.Y)}";
 
         try
         {
@@ -666,6 +847,18 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         }
     }
 
+    private static Vector2? ReadAbyssPitGridPosition(Entity entity)
+    {
+        try
+        {
+            return entity.GridPos;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static string DescribeAbyssPit(Entity entity, string path, string minimapIconName)
     {
         try
@@ -677,6 +870,21 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         {
             return string.IsNullOrWhiteSpace(minimapIconName) ? path : $"icon={minimapIconName} {path}";
         }
+    }
+
+    private static string GetAbyssMiniDungeonEntranceLogKey(Entity entity, string entranceName, string path)
+    {
+        try
+        {
+            if (entity.Address != 0)
+                return "mini-dungeon-entrance:" + entity.Address.ToString("X");
+        }
+        catch
+        {
+            // Fall back below.
+        }
+
+        return "mini-dungeon-entrance:" + entranceName + "|" + path;
     }
 
     private void ScanMonsterAffixes(bool drawGenericAffixes, bool includeCachedMonsters)
@@ -1113,6 +1321,59 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         }
     }
 
+    private void DrawTrackedAbyssPitMarkers()
+    {
+        if (!Settings.AbyssPitCounter.Enable.Value ||
+            !Settings.AbyssPitCounter.DrawTrackedPitMarkers.Value ||
+            _trackedAbyssPits.Count == 0 ||
+            IsCurrentAreaMapSideArea())
+        {
+            return;
+        }
+
+        var index = 0;
+        foreach (var tracked in GetTrackedAbyssPitsForDisplay())
+        {
+            index++;
+            var color = tracked.Closed
+                ? Settings.AbyssPitCounter.ClosedColor.Value
+                : Color.FromArgb(255, 255, 190, 60);
+            var label = $"PIT {index} {(tracked.Closed ? "CLOSED" : "OPEN")}";
+
+            DrawTrackedAbyssPitWorldMarker(tracked.Position, color, label);
+            DrawTrackedAbyssPitMapMarker(tracked.Position, color, index);
+        }
+    }
+
+    private void DrawTrackedAbyssPitWorldMarker(Vector3 position, Color color, string label)
+    {
+        const float radius = 55f;
+        Graphics.DrawCircleInWorld(position, radius, Color.Black, 5);
+        Graphics.DrawCircleInWorld(position, radius, color, 3);
+
+        var camera = RemoteMemoryObject.TheGame?.IngameState?.Camera;
+        if (camera == null)
+            return;
+
+        var screenPos = camera.WorldToScreen(position);
+        if (!IsFinite(screenPos))
+            return;
+
+        var textSize = Graphics.MeasureText(label, 15);
+        DrawOutlinedText(label, new Vector2(screenPos.X - textSize.X / 2f, screenPos.Y - radius * 0.35f), color);
+    }
+
+    private void DrawTrackedAbyssPitMapMarker(Vector3 position, Color color, int index)
+    {
+        if (!TryWorldToMap(position, out var mapPosition, out _))
+            return;
+
+        const float radius = 9f;
+        Graphics.DrawCircle(mapPosition, radius + 2f, Color.Black, 3, 28);
+        Graphics.DrawCircle(mapPosition, radius, color, 2, 28);
+        DrawOutlinedText(index.ToString(), mapPosition + new Vector2(10f, -10f), color);
+    }
+
     private int GetAbyssPitFoundCount()
     {
         var terrainCount = Settings.AbyssPitCounter.UseTerrainFeatureTotal.Value ? Math.Max(0, _abyssPitTerrainCount) : 0;
@@ -1272,7 +1533,25 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
                ContainsMapSideAreaName(SafeAreaValue(() => area.Name));
     }
 
+    private static bool IsAbyssMiniDungeonArea(AreaInstance area)
+    {
+        return ContainsAbyssMiniDungeonName(SafeAreaValue(() => area.Area.Id)) ||
+               ContainsAbyssMiniDungeonName(SafeAreaValue(() => area.Area.Name)) ||
+               ContainsAbyssMiniDungeonName(SafeAreaValue(() => area.Name));
+    }
+
     private static bool ContainsMapSideAreaName(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        return ContainsAbyssMiniDungeonName(value) ||
+               value.Contains("Delirium_HungerBoss", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Loathsome Mire", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("Loathsome_Mire", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsAbyssMiniDungeonName(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
             return false;
@@ -1280,6 +1559,8 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         return value.Contains("Abyss_Depths", StringComparison.OrdinalIgnoreCase) ||
                value.Contains("Abyssal Depths", StringComparison.OrdinalIgnoreCase) ||
                value.Contains("Abyssal_Depths", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("AbyssalDepths", StringComparison.OrdinalIgnoreCase) ||
+               value.Contains("AbyssDepths", StringComparison.OrdinalIgnoreCase) ||
                value.Contains("Abyss_Boss1", StringComparison.OrdinalIgnoreCase) ||
                value.Contains("Abyss_Boss2", StringComparison.OrdinalIgnoreCase) ||
                value.Contains("Abyss_Boss_01", StringComparison.OrdinalIgnoreCase) ||
@@ -1287,10 +1568,7 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
                value.Contains("Lightless Void", StringComparison.OrdinalIgnoreCase) ||
                value.Contains("Lightless_Void", StringComparison.OrdinalIgnoreCase) ||
                value.Contains("Dark Domain", StringComparison.OrdinalIgnoreCase) ||
-               value.Contains("Dark_Domain", StringComparison.OrdinalIgnoreCase) ||
-               value.Contains("Delirium_HungerBoss", StringComparison.OrdinalIgnoreCase) ||
-               value.Contains("Loathsome Mire", StringComparison.OrdinalIgnoreCase) ||
-               value.Contains("Loathsome_Mire", StringComparison.OrdinalIgnoreCase);
+               value.Contains("Dark_Domain", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string DescribeArea(AreaInstance area)
@@ -1994,6 +2272,8 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         DrawToggle("Use path fallback", Settings.AbyssPitCounter.UsePathFallback, "Experimental. Also counts entities whose path contains the configured substrings. Leave off for normal tracking; the reliable source is MinimapIcon.Name AbyssPitActive/AbyssPitInactive.");
 
         ImGui.SeparatorText("Current map actions");
+        DrawToggle("Draw tracked pit markers", Settings.AbyssPitCounter.DrawTrackedPitMarkers, "Debug overlay for manual verification. Draws numbered circles on every Abyss pit ThreatSense has counted in the parent map. Green means closed; orange means not yet closed. Hidden inside side areas because their map overlay uses different coordinates.");
+
         if (ImGui.Button("Reset live counter"))
             ResetAbyssPitTracking();
         HelpMarker("Clears only the live counter for the current area. It does not erase Abyss map history.");
@@ -2412,9 +2692,22 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
             {
                 "# ThreatSense Abyss marker dump",
                 "# Runtime MinimapIcon.Name == AbyssPitActive/AbyssPitInactive is the primary signal. Path matches below are diagnostic only.",
-                "TimestampUtc\tEntityType\tGridPosition\tMinimapIcon.Name\tMinimapIcon.IsVisible\tMinimapIcon.IsHide\tIsTargetable\tChest.IsOpened\tTransitionable.Flag1\tPath"
+                "# Tracked pit indices match the Draw tracked pit markers overlay.",
+                "TrackedIndex\tClosed\tGridPosition\tWorldPosition\tMinimapIcon.Name\tMinimapIcon.IsVisible\tMinimapIcon.IsHide\tIsTargetable\tChest.IsOpened\tTransitionable.Flag1\tFirstSeenAgoMs\tLastSeenAgoMs\tKey\tCloseReason\tPath"
             };
 
+            var now = Environment.TickCount64;
+            var trackedRows = DumpTrackedAbyssPits(lines, now);
+            var entranceRows = DumpAbyssMiniDungeonEntranceCandidates(lines);
+
+            lines.Add(string.Empty);
+            lines.Add("# Currently exposed marker/path candidates");
+            lines.AddRange(new[]
+            {
+                "TimestampUtc\tEntityType\tGridPosition\tMinimapIcon.Name\tMinimapIcon.IsVisible\tMinimapIcon.IsHide\tIsTargetable\tChest.IsOpened\tTransitionable.Flag1\tPath"
+            });
+
+            var candidateRows = 0;
             foreach (var entity in GetCachedEntities())
             {
                 try
@@ -2441,20 +2734,101 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
                         DumpValue(state.TransitionFlag1),
                         DumpValue(path)
                     }));
+                    candidateRows++;
                 }
                 catch (Exception ex)
                 {
                     lines.Add(DateTimeOffset.UtcNow.ToString("O") + "\t<entity read failed>\t" + DumpValue(ex.Message));
+                    candidateRows++;
                 }
             }
 
             File.WriteAllLines(dumpPath, lines);
-            DebugWindow.LogMsg($"[ThreatSense] Wrote {Math.Max(0, lines.Count - 3)} Abyss marker rows to {dumpPath}", 5);
+            DebugWindow.LogMsg($"[ThreatSense] Wrote {trackedRows} tracked pit rows, {entranceRows} entrance rows, and {candidateRows} exposed marker rows to {dumpPath}", 5);
         }
         catch (Exception ex)
         {
             DebugWindow.LogError($"[ThreatSense] Failed to write Abyss marker dump: {ex.Message}");
         }
+    }
+
+    private int DumpTrackedAbyssPits(List<string> lines, long now)
+    {
+        var index = 0;
+        foreach (var tracked in GetTrackedAbyssPitsForDisplay())
+        {
+            index++;
+            var state = tracked.LastState;
+            lines.Add(string.Join("\t", new[]
+            {
+                DumpValue(index),
+                DumpValue(tracked.Closed),
+                DumpValue(FormatGridPosition(tracked.GridPosition)),
+                DumpValue(FormatWorldPosition(tracked.Position)),
+                DumpValue(tracked.MinimapIconName),
+                DumpValue(state.MapVisible),
+                DumpValue(state.MapHidden),
+                DumpValue(state.IsTargetable),
+                DumpValue(state.ChestOpened),
+                DumpValue(state.TransitionFlag1),
+                DumpValue(Math.Max(0, now - tracked.FirstSeenMs)),
+                DumpValue(Math.Max(0, now - tracked.LastSeenMs)),
+                DumpValue(tracked.Key),
+                DumpValue(tracked.CloseReason),
+                DumpValue(tracked.Path)
+            }));
+        }
+
+        return index;
+    }
+
+    private int DumpAbyssMiniDungeonEntranceCandidates(List<string> lines)
+    {
+        lines.Add(string.Empty);
+        lines.Add("# Abyss mini-dungeon entrance candidates");
+        lines.Add("TimestampUtc\tEntityType\tGridPosition\tRenderName\tMinimapIcon.Name\tTransitionable.Flag1\tPath");
+
+        var rows = 0;
+        var seen = new HashSet<long>();
+        foreach (var entity in GetCachedEntities())
+        {
+            try
+            {
+                if (!TryAddCandidate(seen, entity) ||
+                    !TryGetAbyssMiniDungeonEntranceMatch(entity, out var entranceName, out var path, out var minimapIconName))
+                {
+                    continue;
+                }
+
+                var state = ReadAbyssPitState(entity);
+                lines.Add(string.Join("\t", new[]
+                {
+                    DateTimeOffset.UtcNow.ToString("O"),
+                    DumpValue(ReadEntityType(entity)),
+                    DumpValue(ReadGridPosition(entity)),
+                    DumpValue(entranceName),
+                    DumpValue(minimapIconName),
+                    DumpValue(state.TransitionFlag1),
+                    DumpValue(path)
+                }));
+                rows++;
+            }
+            catch (Exception ex)
+            {
+                lines.Add(DateTimeOffset.UtcNow.ToString("O") + "\t<entrance read failed>\t" + DumpValue(ex.Message));
+                rows++;
+            }
+        }
+
+        return rows;
+    }
+
+    private IEnumerable<TrackedAbyssPit> GetTrackedAbyssPitsForDisplay()
+    {
+        return _trackedAbyssPits.Values
+            .OrderBy(x => x.GridPosition?.X ?? float.MaxValue)
+            .ThenBy(x => x.GridPosition?.Y ?? float.MaxValue)
+            .ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase);
     }
 
     private string GetAbyssMarkerDumpPath()
@@ -2486,6 +2860,16 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         {
             return string.Empty;
         }
+    }
+
+    private static string FormatGridPosition(Vector2? gridPosition)
+    {
+        return gridPosition is { } grid ? $"{grid.X:0.##},{grid.Y:0.##}" : string.Empty;
+    }
+
+    private static string FormatWorldPosition(Vector3 position)
+    {
+        return $"{position.X:0.##},{position.Y:0.##},{position.Z:0.##}";
     }
 
     private static string DumpValue(object? value)
@@ -2798,7 +3182,9 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         public string Path { get; set; } = string.Empty;
         public string MinimapIconName { get; set; } = string.Empty;
         public Vector3 Position { get; set; }
+        public Vector2? GridPosition { get; set; }
         public bool Closed { get; set; }
+        public string CloseReason { get; set; } = string.Empty;
         public bool WasTargetable { get; set; }
         public bool WasMapVisible { get; set; }
         public bool WasTransitionActive { get; set; }
