@@ -63,7 +63,6 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
     private string _currentAbyssMapName = string.Empty;
     private string _currentAbyssAreaId = string.Empty;
     private string _currentAbyssRunKey = string.Empty;
-    private bool _currentAbyssRunRecorded;
     private bool _insideMapSideArea;
     private int _abyssPitTerrainCount = -1;
     private bool _abyssPitTerrainScanAttempted;
@@ -1162,7 +1161,6 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
             ? _currentAbyssAreaId
             : _currentAbyssMapName;
         _currentAbyssRunKey = areaKey;
-        _currentAbyssRunRecorded = false;
     }
 
     private static string GetAbyssMapDisplayName(AreaInstance area)
@@ -1205,11 +1203,10 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         entry.MapName = string.IsNullOrWhiteSpace(_currentAbyssMapName) ? entry.MapName : _currentAbyssMapName;
         entry.AreaId = string.IsNullOrWhiteSpace(_currentAbyssAreaId) ? entry.AreaId : _currentAbyssAreaId;
 
-        if (!_currentAbyssRunRecorded || !string.Equals(entry.LastRunKey, _currentAbyssRunKey, StringComparison.Ordinal))
+        if (!string.Equals(entry.LastRunKey, _currentAbyssRunKey, StringComparison.Ordinal))
         {
             entry.Runs++;
             entry.LastRunKey = _currentAbyssRunKey;
-            _currentAbyssRunRecorded = true;
             changed = true;
         }
 
@@ -2050,7 +2047,6 @@ public sealed class ThreatSense : BaseSettingsPlugin<ThreatSenseSettings>
         if (ImGui.Button("Reset history"))
         {
             _abyssMapHistory.Clear();
-            _currentAbyssRunRecorded = false;
             SaveAbyssMapHistory();
             UpdateAbyssMapHistory();
         }
